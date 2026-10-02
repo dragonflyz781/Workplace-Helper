@@ -78,6 +78,10 @@ with sync_playwright() as p:
 
     # ------------------------------------------------------------------ Not configured -> setup screen (no ?emulator)
     ps = br.new_context(viewport={"width": 900, "height": 700}).new_page(); watch(ps, "setup")
+    # js/firebase-config.js now holds Keith's REAL project, so this page is served a PLACEHOLDER copy of it
+    # (request interception - the file itself is untouched and the real project is never contacted).
+    ps.route("**/js/firebase-config.js", lambda route: route.fulfill(
+        status=200, content_type="text/javascript", body='export const firebaseConfig = { apiKey: "PASTE_API_KEY_HERE" };'))
     ps.goto(BASE.split("?")[0]); wait_view(ps, "setup")
     check("placeholder firebase-config.js shows the 'connect Firebase' setup screen", "firebase-config.js" in ps.inner_text("#setupScreen"))
     shot(ps, "00-setup-needed.png"); ps.close()
@@ -333,6 +337,276 @@ with sync_playwright() as p:
     B.evaluate("document.getElementById('adminSignOut').click()"); wait_view(B, "auth", 20000)
     login(B, "bob@bravo.test", "Passw0rd!"); wait_view(B, "admin")
     check("sign out -> sign in again works (company B admin)", B.inner_text("#adminCompany") == "Bravo Buses")
+
+    # ====================================================================================================
+    # NEW: Next-stop display, 50 m boarding by stop, Finish & submit run, admin Runs tab, isolation
+    # ====================================================================================================
+    import csv as _csv, io as _io, datetime as _dt
+    def hav(a, b):
+        R = 6371000; dl = math.radians(b[0]-a[0]); dn = math.radians(b[1]-a[1])
+        s = math.sin(dl/2)**2 + math.cos(math.radians(a[0]))*math.cos(math.radians(b[0]))*math.sin(dn/2)**2
+        return 2*R*math.asin(min(1, math.sqrt(s)))
+    def off_n(pt, north_m=0, east_m=0):
+        return (pt[0] + north_m/111320.0, pt[1] + east_m/(111320.0*math.cos(math.radians(pt[0]))))
+    def gps(pt):
+        ctxD.set_geolocation({"latitude": pt[0], "longitude": pt[1], "accuracy": 5})
+    def card(page=None):
+        return (page or D).inner_text("#nextStop").replace("\n", " | ")
+    def pax_ls():
+        return D.evaluate(f"JSON.parse(localStorage.getItem('rt_pax_{rid}')||'null')")
+    def card_has(txt, to=10000):
+        D.wait_for_function("t => document.getElementById('nextStop').innerText.includes(t)", arg=txt, timeout=to)
+
+
+    # ---- a dedicated route for the run tests: 4 stops in track order, stop 4 has a generic name (timetable supplies the best name)
+    A.click("#admTabRoutes"); A.click("#newRouteBtn"); wait_view(A, "editor")
+    A.fill("#ed_name", "Run Test Route (AM)"); A.select_option("#ed_category", "school"); A.select_option("#ed_session", "AM")
+    A.set_input_files("#ed_gpx", str(GPX))
+    A.wait_for_function("document.querySelectorAll('#stopList .rowitem').length === 4")
+    A.fill("#stopList .rowitem:nth-child(4) .stop-name", "Stop 4")
+    A.click("#ttFillMorning")
+    for i, t in enumerate(["07:40", "07:52", "08:05", "08:20"]):
+        A.fill(f"#ttMorning .rowitem:nth-child({i+1}) .tt-time", t)
+    A.fill("#ttMorning .rowitem:nth-child(4) .tt-stop", "Penyrheol Comprehensive School")
+    A.click("#edSave"); wait_view(A, "admin")
+    A.wait_for_function("[...document.querySelectorAll('#adminRouteList .arow')].some(e=>e.innerText.includes('Run Test Route'))")
+    rid2 = A.evaluate("[...document.querySelectorAll('#adminRouteList .arow')].find(e=>e.innerText.includes('Run Test Route')).dataset.routeId")
+    RN = "Run Test Route (AM)"
+    # driver switches to it (leave Sat-Nav first, pick from the drawer)
+    if "satnav-mode" in D.evaluate("document.body.className"):
+        D.click("#fsExit"); D.wait_for_function("!document.body.classList.contains('satnav-mode')")
+    D.click("#menuBtn"); D.wait_for_timeout(300)
+    D.click(".rt-tab:has-text('Schools AM')"); D.wait_for_timeout(200)
+    D.click("#routeList .route-card:has-text('Run Test Route') .chip-btn.use")
+    D.wait_for_function("document.getElementById('routeName').textContent === 'Run Test Route (AM)'", timeout=15000)
+    rid = rid2
+
+    route_doc = A.evaluate(f"window.__mc.getDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','routes','{rid}')).then(d=>d.data())")
+    S = [(s["lat"], s["lng"]) for s in route_doc["stops"]]
+    SN = [s["name"] for s in route_doc["stops"]]
+    TRK = A.evaluate("async enc => (await import('/js/geo.js')).decodePolyline(enc)", route_doc["trackEnc"])
+    def nearest_idx(pt): return min(range(len(TRK)), key=lambda i: hav(pt, TRK[i]))
+    sti = [nearest_idx(p) for p in S[:3]]
+    print("   info: stops", SN, "nearest track idx of stops 1-3:", sti, "of", len(TRK))
+    check("e2e setup: stops 1-3 lie along the track in order", sti[0] < sti[1] < sti[2], sti)
+    min_gap = min(hav(S[i], S[j]) for i in range(4) for j in range(i+1, 4))
+    check("e2e setup: stops are far enough apart for the 50 m tests", min_gap > 500, min_gap)
+
+    D.click("#satnavBtn"); D.wait_for_timeout(2500)
+    check("Sat-Nav running on the run-test route", "satnav-mode" in D.evaluate("document.body.className"))
+    check("run test starts with no stored counts for this route", (pax_ls() or {}).get("stopsOn", {}) == {} )
+
+    # ---- 1. Next stop display, live as the driver progresses along the track
+    mid12 = TRK[(sti[0] + sti[1]) // 2]; mid23 = TRK[(sti[1] + sti[2]) // 2]
+    check("e2e setup: mid-points are >50 m from every stop", all(hav(m, s) > 50 for m in (mid12, mid23) for s in S), [round(hav(mid12, s)) for s in S])
+    gps(mid12); card_has("NEXT STOP 2 OF 4")
+    c = card()
+    exp_d = hav(mid12, S[1])
+    m = re.search(r"([\d.]+)\s*(m|km)\b", c)
+    shown_m = float(m.group(1)) * (1000 if m.group(2) == "km" else 1) if m else -1
+    check("Next stop card: number, name, distance and scheduled time (stop 2 of 4, 07:52)",
+          "Pontarddulais Road" in c and "NEXT STOP 2 OF 4" in c and abs(shown_m - exp_d) <= max(60, exp_d * 0.06) and "07:52" in c, (c, round(exp_d)))
+    check("Next stop card number badge shows 2", D.inner_text("#nsNum") == "2")
+    shot(D, "16-driver-satnav-next-stop.png")
+    gps(mid23); card_has("NEXT STOP 3 OF 4")
+    c = card()
+    check("Next stop updates live as the driver progresses (stop 3, 08:05)", "Gorseinon Square" in c and "08:05" in c, c)
+    check("Existing Sat-Nav top bar intact next to Next stop (turn instruction, clock, speed, limit)",
+          D.evaluate("""['satnavArrow','satnavDist','satnavInstr','snClock','snSpeed','snLimit'].every(i => !!document.getElementById(i)) &&
+                        getComputedStyle(document.getElementById('satnavTop')).display !== 'none'"""))
+
+    # ---- 2. Boarding by stop, 50 m radius
+    gps(off_n(S[0], 20, 0)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('At Stop 1')", timeout=10000)
+    check("within 50 m (20 m): context says 'At Stop 1 — taps log to this stop'", "At Stop 1 — taps log to this stop" in D.inner_text("#paxContext"), D.inner_text("#paxContext"))
+    card_has("AT STOP 1 OF 4")
+    check("Next stop card switches to 'AT STOP 1' while within 50 m", "Clydach (Post Office)" in card() and "07:40" in card(), card())
+    for _ in range(3): D.click("#fsPaxOn")
+    D.click("#fsPaxOff")
+    shot(D, "17-driver-at-stop-board.png")
+    gps(off_n(S[0], 0, 120)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('Between stops')", timeout=10000)
+    check("outside 50 m (120 m): context says taps log as unscheduled", "unscheduled" in D.inner_text("#paxContext"), D.inner_text("#paxContext"))
+    D.click("#fsPaxOn")                                                     # unscheduled #1
+    gps(off_n(S[1], 45, 0)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('At Stop 2')", timeout=10000)
+    check("45 m from a stop still counts as at the stop", "At Stop 2 — taps log to this stop" in D.inner_text("#paxContext"), D.inner_text("#paxContext"))
+    D.click("#fsPaxOn"); D.click("#fsPaxOn")
+    gps(off_n(S[1], 60, 0)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('Between stops')", timeout=10000)
+    check("60 m from a stop is NOT at the stop (50 m radius)", "unscheduled" in D.inner_text("#paxContext"), D.inner_text("#paxContext"))
+    D.click("#fsPaxOn")                                                     # unscheduled #2
+    gps(off_n(S[2], 5, 0)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('At Stop 3')", timeout=10000)
+    D.click("#fsPaxOn"); D.click("#fsPaxOff")
+    st = pax_ls()
+    check("localStorage run state has per-stop counts (stop1 3/1, stop2 2/0, stop3 1/1, unscheduled 2/0)",
+          st["stopsOn"] == {"0": 3, "1": 2, "2": 1} and st["stopsOff"] == {"0": 1, "2": 1} and st["adhocOn"] == 2 and st["adhocOff"] == 0 and st["startedAt"], st)
+    check("Finish button visible in Sat-Nav view", D.is_visible("#snFinishBtn"))
+
+    # ---- 3. A refresh doesn't lose the counts
+    D.reload(); wait_view(D, "driver")
+    D.wait_for_function("document.getElementById('routeName').textContent === 'Run Test Route (AM)'", timeout=15000)
+    st2 = pax_ls()
+    check("after a page refresh the per-stop counts are still there", st2 == st, st2)
+
+    # ---- 4. Finish & submit: confirm summary, cancel keeps data, submit writes the run
+    check("'Finish & submit run' button visible in driver view when a route is active", D.is_visible("#finishRunBtn"))
+    D.click("#finishRunBtn"); D.wait_for_selector("#runModal", state="visible")
+    mt = D.inner_text("#runModal")
+    check("confirm summary shows route name, per-stop boarded/alighted, unscheduled and total boarded",
+          "Run Test Route (AM)" in mt and re.search(r"1\. Clydach \(Post Office\)\s+3\s+1", mt) and re.search(r"2\. Pontarddulais Road\s+2\s+0", mt)
+          and re.search(r"3\. Gorseinon Square\s+1\s+1", mt) and re.search(r"4\. Penyrheol Comprehensive School\s+0\s+0", mt)
+          and re.search(r"Unscheduled[^\n]*\s+2\s+0", mt) and re.search(r"Total\s+8\s+2", mt), mt)
+    shot(D, "18-driver-finish-confirm.png")
+    D.click("#runCancel")
+    check("Cancel closes the dialog and keeps the counts; nothing written",
+          not D.is_visible("#runModal") and pax_ls() == st and
+          A.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>s.size)") == 0)
+    D.click("#finishRunBtn"); D.click("#runSubmit")
+    D.wait_for_function("document.getElementById('runMsg').textContent.includes('Run submitted')", timeout=20000)
+    shot(D, "19-driver-run-submitted.png")
+    D.click("#runSubmit")      # "Done"
+    runs_a = A.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>s.docs.map(d=>({{id:d.id, ...d.data(), submittedAt:d.data().submittedAt.toMillis(), startedAt:d.data().startedAt.toMillis()}})))")
+    check("exactly one run document written at companies/{cid}/runs/{autoId}", len(runs_a) == 1 and len(runs_a[0]["id"]) == 20, [r["id"] for r in runs_a])
+    R1 = runs_a[0]
+    check("run doc has exactly the specified keys",
+          sorted(k for k in R1 if k != "id") == sorted(["routeId","routeName","session","driverUid","driverName","startedAt","submittedAt","totalBoarded","totalAlighted","unscheduledBoarded","unscheduledAlighted","stops"]), sorted(R1.keys()))
+    uid_d = D.evaluate("window.__mc.auth.currentUser.uid")
+    check("run doc: routeId/routeName/session/driverUid/driverName (from users/{uid}.name)",
+          R1["routeId"] == rid and R1["routeName"] == "Run Test Route (AM)" and R1["session"] == "AM" and R1["driverUid"] == uid_d and R1["driverName"] == "Dave Driver", R1)
+    check("run doc: totals + unscheduled", (R1["totalBoarded"], R1["totalAlighted"], R1["unscheduledBoarded"], R1["unscheduledAlighted"]) == (8, 2, 2, 0), R1)
+    check("run doc: per-stop {index,name,boarded,alighted}",
+          R1["stops"] == [{"index":0,"name":"Clydach (Post Office)","boarded":3,"alighted":1}, {"index":1,"name":"Pontarddulais Road","boarded":2,"alighted":0},
+                          {"index":2,"name":"Gorseinon Square","boarded":1,"alighted":1}, {"index":3,"name":"Penyrheol Comprehensive School","boarded":0,"alighted":0}], R1["stops"])
+    check("run doc: startedAt <= submittedAt, submittedAt is recent (server time)", 0 < R1["startedAt"] <= R1["submittedAt"] and abs(R1["submittedAt"] - time.time()*1000) < 120000, (R1["startedAt"], R1["submittedAt"]))
+    stl = pax_ls()
+    check("after submit the run counts for that route are reset (localStorage)", (stl or {}).get("stopsOn") == {} and stl["adhocOn"] == 0 and D.inner_text("#paxCountMap") == "0", stl)
+    check("no pending runs left on the phone", D.evaluate("JSON.parse(localStorage.getItem('rt_pending_runs')||'[]').length") == 0)
+    # driver: write-once + isolation
+    r = D.evaluate(f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{R1['id']}'),{{totalBoarded:999}}).then(()=>'UPDATED').catch(e=>e.code)")
+    check("driver cannot update a run (permission-denied)", r == "permission-denied", r)
+    r = D.evaluate(f"window.__mc.deleteDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{R1['id']}')).then(()=>'DELETED').catch(e=>e.code)")
+    check("driver cannot delete a run (permission-denied)", r == "permission-denied", r)
+    r = D.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>'READ '+s.size).catch(e=>e.code)")
+    check("driver cannot list all runs (permission-denied)", r == "permission-denied", r)
+    r = D.evaluate(f"window.__mc.getDocs(window.__mc.query(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs'),window.__mc.where('driverUid','==','{uid_d}'))).then(s=>'READ '+s.size).catch(e=>e.code)")
+    check("driver can read their own runs", r == "READ 1", r)
+    r = D.evaluate(f"window.__mc.setDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','forged'),{{routeId:'x',routeName:'x',session:'AM',driverUid:'someone-else',driverName:'x',startedAt:new Date(),submittedAt:new Date(),totalBoarded:1,totalAlighted:0,unscheduledBoarded:0,unscheduledAlighted:0,stops:[]}}).then(()=>'WRITTEN').catch(e=>e.code)")
+    check("driver cannot forge a run for another uid / with client timestamp", r == "permission-denied", r)
+
+    # ---- 5. Second run submitted while OFFLINE -> kept locally with Retry, then uploaded
+    ctxD.set_offline(True); D.wait_for_function("navigator.onLine === false")
+    D.click("[data-pax=on]"); D.click("[data-pax=on]"); D.click("[data-pax=off]")
+    D.click("#finishRunBtn"); D.click("#runSubmit")
+    D.wait_for_function("document.getElementById('runMsg').className.includes('err')", timeout=20000)
+    check("offline submit: error shown with Retry button", "offline" in D.inner_text("#runMsg") and D.inner_text("#runSubmit") == "Retry", D.inner_text("#runMsg"))
+    shot(D, "20-driver-run-offline-retry.png")
+    D.click("#runCancel")
+    check("offline submit: run kept locally (pending list + banner) and counts not reset",
+          D.evaluate("JSON.parse(localStorage.getItem('rt_pending_runs')||'[]').length") == 1 and D.is_visible("#runPending") and D.inner_text("#paxCountMap") == "1")
+    ctxD.set_offline(False); D.wait_for_function("navigator.onLine === true")
+    D.click("#runPendingRetry"); D.wait_for_selector("#runModal", state="visible")
+    D.click("#runSubmit")
+    D.wait_for_function("document.getElementById('runMsg').textContent.includes('Run submitted')", timeout=30000)
+    D.click("#runSubmit")
+    check("retry after reconnect uploads the run and clears the pending copy",
+          D.evaluate("JSON.parse(localStorage.getItem('rt_pending_runs')||'[]').length") == 0 and not D.is_visible("#runPending") and D.inner_text("#paxCountMap") == "0")
+    runs_a = A.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>s.docs.map(d=>({{id:d.id, ...d.data(), submittedAt:d.data().submittedAt.toMillis()}})))")
+    runs_a.sort(key=lambda r: r["submittedAt"])
+    check("exactly 2 runs now (no duplicate from the retry); 2nd run: unscheduled 2 boarded / 1 alighted",
+          len(runs_a) == 2 and runs_a[1]["unscheduledBoarded"] == 2 and runs_a[1]["unscheduledAlighted"] == 1 and runs_a[1]["totalBoarded"] == 2
+          and all(s["boarded"] == 0 and s["alighted"] == 0 for s in runs_a[1]["stops"]), runs_a[1] if len(runs_a) > 1 else runs_a)
+    R2 = runs_a[1]
+
+    # ---- 6. Stop-name fallback ('Stop N', no invented times) on a route whose stops have no names
+    D.click("#menuBtn"); D.wait_for_timeout(300)
+    D.click(".rt-tab:has-text('Schools AM')"); D.wait_for_timeout(200)
+    D.click("#routeList .route-card:has-text('995 (AM)') .chip-btn.use")
+    D.wait_for_function("document.getElementById('routeName').textContent === '995 (AM)'")
+    r995 = A.evaluate("window.__mc.getDoc(window.__mc.doc(window.__mc.db,'companies','%s','routes','route-995-am')).then(d=>d.data())" % cid_a)
+    gps((r995["stops"][0]["lat"], r995["stops"][0]["lng"]))
+    D.click("#satnavBtn"); D.wait_for_function("document.getElementById('nextStop').innerText.includes('OF')", timeout=15000)
+    cf = card()
+    check("stop with no name falls back to 'Stop N' and shows no invented time", re.search(r"\| Stop \d+ \|", cf) and "Due" not in cf, cf)
+    D.click("#fsExit")        # end Sat-Nav
+    D.wait_for_function("!document.body.classList.contains('satnav-mode')")
+
+    # ---- 7. Admin 'Runs' tab
+    A.click("#admTabRuns")
+    A.wait_for_function("document.querySelectorAll('#runList .run-card').length === 2", timeout=15000)
+    shot(A, "21-admin-runs-list.png")
+    t0 = A.eval_on_selector_all("#runList .run-card:nth-child(2) .run-head > div", "els=>els.map(e=>e.innerText.replace(/^[A-Z /]+\\n/,''))")
+    t1 = A.eval_on_selector_all("#runList .run-card:nth-child(3) .run-head > div", "els=>els.map(e=>e.innerText.replace(/^[A-Z /]+\\n/,''))")
+    check("Runs tab: newest first (row 1 = 2nd run: 2 boarded / 1 alighted; row 2 = 1st run: 8 / 2)",
+          t0[4] == "2" and t0[5] == "1" and t1[4] == "8" and t1[5] == "2" and t0[1] == "Dave Driver" and t1[2] == "Run Test Route (AM)" and t1[3] == "AM", (t0, t1))
+    first_date = t1[0]
+    check("Runs tab: date/time column is filled", re.search(r"\d{2} \w{3} \d{4} \d{2}:\d{2}", first_date), first_date)
+    check("Runs tab: totals summary (10 boarded, 2 runs)", re.search(r"10\s+passengers boarded\s*·\s*2\s+runs", A.inner_text("#runSummary")), A.inner_text("#runSummary"))
+    # expand per-stop breakdown
+    A.click("#runList .run-card:nth-child(3) .run-head")
+    A.wait_for_selector("#runList .run-detail")
+    det = A.inner_text("#runList .run-detail")
+    check("expanded run: per-stop table (stop, boarded, alighted) + unscheduled + total",
+          re.search(r"1\. Clydach \(Post Office\)\s+3\s+1", det) and re.search(r"2\. Pontarddulais Road\s+2\s+0", det) and re.search(r"3\. Gorseinon Square\s+1\s+1", det)
+          and re.search(r"4\. Penyrheol Comprehensive School\s+0\s+0", det) and re.search(r"Unscheduled[^\n]*\s+2\s+0", det) and re.search(r"Total\s+8\s+2", det), det)
+    shot(A, "22-admin-runs-expanded.png")
+    A.click("#runList .run-card:nth-child(3) .run-head"); A.wait_for_function("document.querySelectorAll('#runList .run-detail').length === 0")
+    # filters
+    opts_r = A.eval_on_selector_all("#runFltRoute option", "els=>els.map(e=>e.textContent)")
+    opts_d = A.eval_on_selector_all("#runFltDriver option", "els=>els.map(e=>e.textContent)")
+    check("filter dropdowns list the routes and drivers that have runs", opts_r == ["All routes", "Run Test Route (AM)"] and opts_d == ["All drivers", "Dave Driver"], (opts_r, opts_d))
+    A.select_option("#runFltRoute", rid); n1 = A.evaluate("document.querySelectorAll('#runList .run-card').length")
+    A.select_option("#runFltRoute", ""); A.select_option("#runFltDriver", uid_d); n2 = A.evaluate("document.querySelectorAll('#runList .run-card').length")
+    check("filter by route and by driver keep both runs", n1 == 2 and n2 == 2, (n1, n2))
+    A.select_option("#runFltDriver", "")
+    today = _dt.date.today(); tomorrow = today + _dt.timedelta(days=1); yesterday = today - _dt.timedelta(days=1)
+    A.fill("#runFltFrom", tomorrow.isoformat())
+    check("date filter: From tomorrow -> no runs", A.evaluate("document.querySelectorAll('#runList .run-card').length") == 0 and "No runs match" in A.inner_text("#runList") and "0" in A.inner_text("#runSummary"), A.inner_text("#runSummary"))
+    shot(A, "23-admin-runs-filtered-none.png")
+    A.fill("#runFltFrom", yesterday.isoformat()); A.fill("#runFltTo", today.isoformat())
+    check("date filter: yesterday..today -> both runs; summary updates", A.evaluate("document.querySelectorAll('#runList .run-card').length") == 2 and re.search(r"10\s+passengers boarded", A.inner_text("#runSummary")))
+    A.fill("#runFltTo", yesterday.isoformat())
+    check("date filter: To yesterday -> no runs", A.evaluate("document.querySelectorAll('#runList .run-card').length") == 0)
+    A.click("#runFltClear")
+    check("Clear filters restores the full list", A.evaluate("document.querySelectorAll('#runList .run-card').length") == 2)
+    # CSV
+    with A.expect_download() as dl:
+        A.click("#runCsvBtn")
+    csv_path = dl.value.path()
+    txt = Path(csv_path).read_text(encoding="utf-8-sig")
+    rows_csv = list(_csv.reader(_io.StringIO(txt)))
+    hdr, body = rows_csv[0], rows_csv[1:]
+    check("CSV: header + one row per stop per run (+ 'Unscheduled' row): 2 runs x (4 stops + 1) = 10 rows",
+          hdr[:2] == ["Run ID", "Submitted"] and "Stop name" in hdr and len(body) == 10, (hdr, len(body)))
+    i_run, i_n, i_nm, i_b, i_a, i_drv = hdr.index("Run ID"), hdr.index("Stop number"), hdr.index("Stop name"), hdr.index("Boarded"), hdr.index("Alighted"), hdr.index("Driver")
+    got = {(r[i_run], r[i_n]): (r[i_nm], r[i_b], r[i_a], r[i_drv]) for r in body}
+    check("CSV: per-stop numbers and driver name correct",
+          got[(R1["id"], "1")] == ("Clydach (Post Office)", "3", "1", "Dave Driver") and got[(R1["id"], "2")] == ("Pontarddulais Road", "2", "0", "Dave Driver")
+          and got[(R1["id"], "3")] == ("Gorseinon Square", "1", "1", "Dave Driver") and got[(R1["id"], "4")] == ("Penyrheol Comprehensive School", "0", "0", "Dave Driver") and got[(R1["id"], "")] == ("Unscheduled", "2", "0", "Dave Driver")
+          and got[(R2["id"], "")] == ("Unscheduled", "2", "1", "Dave Driver"), got)
+    Path("/tmp/runs-export.csv").write_text(txt, encoding="utf-8")
+    # CSV respects filters
+    A.fill("#runFltTo", yesterday.isoformat()); 
+    check("Download CSV is disabled when the filtered set is empty", A.is_disabled("#runCsvBtn"))
+    A.click("#runFltClear")
+    # delete a run
+    A.click("#runList .run-card:nth-child(2) .run-head"); A.click("#runList .run-card:nth-child(2) [data-act=del]")
+    A.wait_for_function("document.querySelectorAll('#runList .run-card').length === 1", timeout=10000)
+    left = A.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>s.docs.map(d=>d.id))")
+    check("admin can delete a run (gone from list and from Firestore; summary updates)", left == [R1["id"]] and re.search(r"8\s+passengers boarded\s*·\s*1\s+run\b", A.inner_text("#runSummary")), (left, A.inner_text("#runSummary")))
+    shot(A, "24-admin-runs-after-delete.png")
+    r = A.evaluate(f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{R1['id']}'),{{totalBoarded:1}}).then(()=>'UPDATED').catch(e=>e.code)")
+    check("even an admin cannot update a run (write-once)", r == "permission-denied", r)
+
+    # ---- 8. Another company cannot see it
+    B.click("#admTabRuns"); B.wait_for_timeout(800)
+    check("company B's Runs tab shows no runs (A's run is not visible)", B.evaluate("document.querySelectorAll('#runList .run-card').length") == 0 and "No runs yet" in B.inner_text("#runSummary") and "Dave" not in B.inner_text("#admRuns"), B.inner_text("#admRuns")[:200])
+    shot(B, "25-company-b-runs-empty.png")
+    r = B.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>'READ '+s.size).catch(e=>e.code)")
+    check("company B admin cannot list A's runs (permission-denied)", r == "permission-denied", r)
+    r = B.evaluate(f"window.__mc.getDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{R1['id']}')).then(d=>'READ '+d.exists()).catch(e=>e.code)")
+    check("company B admin cannot read a specific A run (permission-denied)", r == "permission-denied", r)
+    r = B.evaluate(f"window.__mc.deleteDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{R1['id']}')).then(()=>'DELETED').catch(e=>e.code)")
+    check("company B admin cannot delete A's run (permission-denied)", r == "permission-denied", r)
+    uid_b = B.evaluate("window.__mc.auth.currentUser.uid")
+    r = B.evaluate(f"window.__mc.setDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','bx'),{{routeId:'x',routeName:'x',session:'AM',driverUid:'{uid_b}',driverName:'x',startedAt:new Date(),submittedAt:window.__mc.serverTimestamp(),totalBoarded:1,totalAlighted:0,unscheduledBoarded:0,unscheduledAlighted:0,stops:[]}}).then(()=>'WRITTEN').catch(e=>e.code)")
+    check("company B cannot write a run into A (permission-denied)", r == "permission-denied", r)
 
     # ------------------------------------------------------------------ Remove driver -> access revoked; re-add reuses login
     A.click("#admTabDrivers")

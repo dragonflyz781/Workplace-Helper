@@ -6,7 +6,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
   doc, getDoc, collection, onSnapshot, writeBatch, serverTimestamp, terminate, clearIndexedDbPersistence,
-  getDocs, setDoc, deleteDoc, updateDoc, query, where
+  getDocs, setDoc, deleteDoc, updateDoc, query, where, Timestamp
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { isConfigured, isEmulator, auth, db } from "./firebase-init.js";
 import { $, setView, toast, friendlyError } from "./ui.js";
@@ -39,7 +39,7 @@ if (!isConfigured) {
 } else {
   if (isEmulator) {
     // Test hook, available ONLY on localhost with ?emulator=1
-    window.__mc = { auth, db, signOut, getDoc, getDocs, doc, collection, query, where, setDoc, deleteDoc, updateDoc };
+    window.__mc = { auth, db, signOut, getDoc, getDocs, doc, collection, query, where, setDoc, deleteDoc, updateDoc, serverTimestamp };
   }
   wireAuthForms();
   onAuthStateChanged(auth, (user) => {
@@ -71,6 +71,7 @@ async function startSession(user) {
     if (profile.role === "admin") $("emptyMsg").textContent = "Your company has no routes yet. Add some from the Admin screen.";
 
     subscribeRoutes();
+    configureRuns(user, profile);
     if (profile.role === "admin") {
       initAdmin({ db, auth, user, profile, companyId: session.companyId, company: session.company, openDriver, signOutAndReset });
       showAdmin();
@@ -95,6 +96,42 @@ function subscribeRoutes() {
     },
     (err) => { console.error(err); toast("Could not load routes: " + friendlyError(err), true); }
   );
+}
+
+/* ---------- "Finish & submit run": hands the driver view a function that writes companies/{cid}/runs/{id} ---------- */
+const RUN_TIMEOUT_MS = 12000;
+function configureRuns(user, profile) {
+  const cid = session.companyId;
+  const driverName = String(profile.name || (user.email || "").split("@")[0] || "Driver").slice(0, 120);   // users/{uid}.name
+  window.RoundTracker.configureRuns({
+    uid: user.uid, companyId: cid,
+    newRunId: () => doc(collection(db, "companies", cid, "runs")).id,           // Firestore auto id, kept for retries
+    async submit(id, run) {
+      if (navigator.onLine === false) { const e = new Error("offline"); e.code = "offline"; throw e; }
+      const ref = doc(db, "companies", cid, "runs", id);
+      const data = {
+        routeId: String(run.routeId), routeName: String(run.routeName || "").slice(0, 200), session: String(run.session || "").slice(0, 10),
+        driverUid: user.uid, driverName,
+        startedAt: Timestamp.fromMillis(run.startedAt || Date.now()), submittedAt: serverTimestamp(),
+        totalBoarded: run.totalBoarded, totalAlighted: run.totalAlighted,
+        unscheduledBoarded: run.unscheduledBoarded, unscheduledAlighted: run.unscheduledAlighted,
+        stops: run.stops.map((s) => ({ index: s.index, name: String(s.name || "").slice(0, 120), boarded: s.boarded, alighted: s.alighted }))
+      };
+      try {
+        await Promise.race([
+          setDoc(ref, data),
+          new Promise((_, rej) => setTimeout(() => { const e = new Error("timed out"); e.code = "timeout"; rej(e); }, RUN_TIMEOUT_MS))
+        ]);
+      } catch (e) {
+        // A retry of a write that actually did reach the server earlier is rejected (runs are write-once):
+        // if our own run is already there, that is a success, not an error.
+        if (e && e.code === "permission-denied") {
+          try { const s = await getDoc(ref); if (s.exists() && s.data().driverUid === user.uid) return; } catch (e2) { /* fall through */ }
+        }
+        throw e;
+      }
+    }
+  });
 }
 
 function teardown() {

@@ -7,14 +7,17 @@ rules_version = '2';
 //   users/{uid}                          { companyId, role: 'admin'|'driver', name, email, createdAt }
 //   companies/{companyId}                { name, ownerUid, createdAt }
 //   companies/{companyId}/routes/{id}    route documents (track, stops, timetable ...)
+//   companies/{companyId}/runs/{id}      submitted driver runs (passenger counts per stop) - write-once
 //
 // Principles
 //   * Everything requires a signed-in user who has a users/{uid} profile.
 //   * A user can only ever touch data under their OWN companyId (taken from their
 //     profile document on the server - the browser cannot fake it).
 //   * Admins can write routes and manage the users of their own company.
-//   * Drivers can read routes, nothing else. (Passenger counts are kept on the
-//     device in this version, so there is nothing for drivers to write.)
+//   * Drivers can read routes. While a run is in progress the passenger counts are kept on the
+//     device; when the driver taps "Finish & submit run" ONE run document is created (create only,
+//     with driverUid == their own uid). Runs can never be updated; only admins can read all runs
+//     of their company (a driver can read only their own) and only admins can delete them.
 // ============================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -77,6 +80,36 @@ service cloud.firestore {
       match /routes/{routeId} {
         allow read:  if inCompany(companyId);                // admins and drivers
         allow write: if isAdmin(companyId);                  // create / update / delete: admins only
+      }
+
+      // ----------------------------------------------------------------- runs
+      // A run is a finished trip with passenger counts, written once by the driver (or an admin
+      // driving). Rules cannot loop over the `stops` array, so its elements are not validated
+      // one by one - the array length is capped and Firestore's own 1 MiB document limit applies.
+      match /runs/{runId} {
+        function isCount(v) { return v is int && v >= 0 && v <= 100000; }
+        function validRun(d) {
+          return d.keys().hasOnly(['routeId','routeName','session','driverUid','driverName','startedAt','submittedAt',
+                                   'totalBoarded','totalAlighted','unscheduledBoarded','unscheduledAlighted','stops'])
+              && d.keys().hasAll(['routeId','routeName','session','driverUid','driverName','startedAt','submittedAt',
+                                  'totalBoarded','totalAlighted','unscheduledBoarded','unscheduledAlighted','stops'])
+              && d.routeId is string && d.routeId.size() > 0 && d.routeId.size() <= 128
+              && d.routeName is string && d.routeName.size() <= 200
+              && d.session is string && d.session.size() <= 10
+              && d.driverUid == request.auth.uid
+              && d.driverName is string && d.driverName.size() <= 120
+              && d.startedAt is timestamp
+              && d.submittedAt == request.time
+              && isCount(d.totalBoarded) && isCount(d.totalAlighted)
+              && isCount(d.unscheduledBoarded) && isCount(d.unscheduledAlighted)
+              && d.stops is list && d.stops.size() <= 500;
+        }
+        // drivers and admins of THIS company, only for themselves
+        allow create: if inCompany(companyId) && validRun(request.resource.data);
+        // admins read every run of their company; a driver only their own (queries must filter on driverUid)
+        allow read:   if isAdmin(companyId) || (inCompany(companyId) && resource.data.driverUid == request.auth.uid);
+        allow update: if false;                              // runs are write-once
+        allow delete: if isAdmin(companyId);
       }
     }
 

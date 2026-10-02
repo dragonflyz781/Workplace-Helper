@@ -8,6 +8,7 @@ import {
 import { createSecondaryAuth } from "./firebase-init.js";
 import { $, esc, toast, setView, friendlyError, toggleTheme } from "./ui.js";
 import { parseGPX, fitTrack, decodePolyline, encodePolyline } from "./geo.js";
+import { initRuns } from "./runs.js";
 
 let ctx = null;            // { db, auth, user, profile, companyId, company, openDriver, signOutAndReset }
 let rawRoutes = {};        // id -> Firestore data (kept up to date by main.js)
@@ -23,6 +24,7 @@ export function initAdmin(c) {
   $("adminWho").textContent = (c.profile.name || c.user.email) + " · Administrator";
   if (!wired) { wired = true; wire(); }
   subscribeUsers();
+  initRuns(c);
 }
 
 export function showAdmin() {
@@ -39,14 +41,15 @@ function wire() {
   $("adminToDriver").addEventListener("click", () => ctx.openDriver());
   $("adminSignOut").addEventListener("click", () => ctx.signOutAndReset());
   $("adminTheme").addEventListener("click", toggleTheme);
-  const tab = (routes) => {
-    $("admTabRoutes").classList.toggle("active", routes);
-    $("admTabDrivers").classList.toggle("active", !routes);
-    $("admRoutes").style.display = routes ? "" : "none";
-    $("admDrivers").style.display = routes ? "none" : "";
+  const tab = (name) => {
+    [["Routes", "admRoutes"], ["Drivers", "admDrivers"], ["Runs", "admRuns"]].forEach(([n, sec]) => {
+      $("admTab" + n).classList.toggle("active", n === name);
+      $(sec).style.display = n === name ? "" : "none";
+    });
   };
-  $("admTabRoutes").addEventListener("click", () => tab(true));
-  $("admTabDrivers").addEventListener("click", () => tab(false));
+  $("admTabRoutes").addEventListener("click", () => tab("Routes"));
+  $("admTabDrivers").addEventListener("click", () => tab("Drivers"));
+  $("admTabRuns").addEventListener("click", () => tab("Runs"));
   $("newRouteBtn").addEventListener("click", () => openEditor(null));
   $("importSampleBtn").addEventListener("click", importSamples);
   $("driverForm").addEventListener("submit", addDriver);

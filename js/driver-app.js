@@ -250,15 +250,21 @@
   var activeId = null;
 
   /* ---------------- Passenger counter (per route, this device) ---------------- */
-  var pax = { byStop:{}, byGpsStop:{}, adhoc:0 };
+  function newPax(){
+    return { byStop:{}, byGpsStop:{}, adhoc:0, stopsOn:{}, stopsOff:{}, adhocOn:0, adhocOff:0, startedAt:null };
+  }
+  var pax = newPax();
   // byStop: schedule-row key ("MORNING-0"...) -> net count, set from the Schedule tab's own +/- controls.
   // byGpsStop: r.stops index -> net count, set from the Board/Alight buttons WHILE the live GPS position is at that stop.
   // adhoc: Board/Alight taps made when GPS isn't near any numbered stop (e.g. an unscheduled pickup).
+  // stopsOn / stopsOff: r.stops index -> number of Board / Alight taps at that stop (what a submitted run reports).
+  // adhocOn / adhocOff: Board / Alight taps made away from every stop ("unscheduled").
+  // startedAt: ms timestamp of the first tap / GPS start of the current run (null = run not started).
   var currentGpsStopIdx = null;
-  var AT_STOP_RADIUS_M = 60;
+  var AT_STOP_RADIUS_M = 50;   // Board/Alight within this many metres of a stop is logged against that stop
   function paxKey(routeId){ return 'rt_pax_'+routeId; }
   function loadPax(routeId){
-    var out = { byStop:{}, byGpsStop:{}, adhoc:0 };
+    var out = newPax();
     try{
       var raw = localStorage.getItem(paxKey(routeId));
       if(raw){
@@ -267,6 +273,11 @@
           out.byStop = parsed.byStop||{};
           out.byGpsStop = parsed.byGpsStop||{};
           out.adhoc = parsed.adhoc||0;
+          out.stopsOn = parsed.stopsOn||{};
+          out.stopsOff = parsed.stopsOff||{};
+          out.adhocOn = parsed.adhocOn||0;
+          out.adhocOff = parsed.adhocOff||0;
+          out.startedAt = parsed.startedAt||null;
         }
       }
     }catch(e){}
@@ -274,6 +285,9 @@
   }
   function savePax(routeId){
     try{ localStorage.setItem(paxKey(routeId), JSON.stringify(pax)); }catch(e){}
+  }
+  function ensureRunStarted(){
+    if(activeId && !pax.startedAt){ pax.startedAt = Date.now(); savePax(activeId); }
   }
   function paxTotal(){
     var t = pax.adhoc;
@@ -304,11 +318,15 @@
     });
   }
   function paxAdjust(delta){
+    ensureRunStarted();
+    var counter = delta>0 ? 'stopsOn' : 'stopsOff';
     if(currentGpsStopIdx!=null){
       var cur = pax.byGpsStop[currentGpsStopIdx] || 0;
       pax.byGpsStop[currentGpsStopIdx] = cur + delta;
+      pax[counter][currentGpsStopIdx] = (pax[counter][currentGpsStopIdx]||0) + 1;
     } else {
       pax.adhoc += delta;
+      if(delta>0) pax.adhocOn += 1; else pax.adhocOff += 1;
     }
     if(activeId) savePax(activeId);
     renderPax();
@@ -321,7 +339,7 @@
   }
   function paxReset(){
     if(!confirm('Reset the onboard passenger count for this route?')) return;
-    pax = { byStop:{}, byGpsStop:{}, adhoc:0 };
+    pax = newPax();
     if(activeId) savePax(activeId);
     renderPax();
   }
@@ -445,6 +463,8 @@
     currentGpsStopIdx = null;
     renderPax();
     renderSchedule();
+    renderRunUi();
+    updateNextStop();
   }
 
   function getCss(varName){
@@ -846,6 +866,9 @@
     smoothLatLng = null; smoothHeading = null; targetHeading = null;
     lastFixPos = null; velLat = 0; velLng = 0;
     fixHistory = []; lastTravelHeading = null;
+    currentGpsStopIdx = null; lastFix = null;   // no live position any more -> taps are no longer "at a stop"
+    renderPaxContext();
+    updateNextStop();
   }
 
   function onPosition(pos){
@@ -940,6 +963,7 @@
       // still moving between stops.
       currentGpsStopIdx = (ns && ns.dist<=AT_STOP_RADIUS_M) ? ns.index : null;
       renderPaxContext();
+      updateNextStop(latlng);
       updateNavBanner(r, latlng);
     } else {
       statDist.textContent = '–'; statDistUnit.textContent = '';
@@ -949,6 +973,7 @@
       satnavThen.style.display = 'none';
       currentGpsStopIdx = null;
       renderPaxContext();
+      updateNextStop(latlng);
     }
     gpsNote.textContent = '';
   }
@@ -1044,6 +1069,7 @@
       }
       tracking = true;
       followMe = true;
+      ensureRunStarted();
       trackBtn.classList.add('on');
       trackBtn.textContent = '■  Stop GPS tracking';
       gpsNote.textContent = 'Finding your location…';
@@ -1114,6 +1140,7 @@
     setFullscreen(true);
     if(!tracking) trackBtn.click();
     if(activeId && routes[activeId]) updateNavBanner(routes[activeId], lastFix ? lastFix.latlng : (map.getCenter?[map.getCenter().lat,map.getCenter().lng]:[0,0]));
+    updateNextStop();
   }
   function endSatnav(){
     if(typeof previewActive!=='undefined' && previewActive){
@@ -1135,6 +1162,7 @@
     satnavTop.style.display = 'none';
     satnavThen.style.display = 'none';
     document.getElementById('satnavBottom').style.display = 'none';
+    updateNextStop();
   }
   satnavBtn.addEventListener('click', function(){
     if(document.body.classList.contains('satnav-mode')) endSatnav(); else startSatnav();
@@ -1181,6 +1209,7 @@
     if(tracking) trackBtn.click(); // stop any real GPS tracking first, don't run both at once
     previewActive = true;
     previewDistance = 0;
+    ensureRunStarted();
     tracking = true;   // reuses onPosition's normal tracking-gated rotation logic
     followMe = true;
     previewBtn.classList.add('on');
@@ -1337,6 +1366,234 @@
   });
   map.on('dragstart', function(){ followMe = false; });
 
+  /* ---------------- Stop names, timetable times & the "Next stop" display ---------------- */
+  function isGenericStopName(n){ return !n || /^stop\s*\d+$/i.test(String(n).trim()); }
+  function normName(n){ return String(n||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  // Which timetable part applies now: the route's own session if it has one, else by time of day.
+  function currentTimetableRows(r){
+    var tt = (r && r.timetable) || {};
+    var am = tt.morning || [], pm = tt.afternoon || [];
+    var wantAm = r.session==='AM' ? true : r.session==='PM' ? false : (new Date().getHours() < 12);
+    var rows = wantAm ? am : pm;
+    if(!rows.length) rows = wantAm ? pm : am;
+    return rows;
+  }
+  // Best available name: route.stops name -> timetable row (when rows line up with stops) -> "Stop N".
+  function stopName(r, i){
+    var n = String((r.stopNames && r.stopNames[i]) || '').trim();
+    if(!isGenericStopName(n)) return n;
+    var rows = currentTimetableRows(r), count = (r.stops||[]).length;
+    if(rows.length && rows.length===count && rows[i] && String(rows[i].stop||'').trim()) return String(rows[i].stop).trim();
+    return n || ('Stop '+(i+1));
+  }
+  // Scheduled time ("HH:MM") for stop i, if the timetable has one: match by name first, else by position.
+  function stopSchedTime(r, i){
+    var rows = currentTimetableRows(r);
+    if(!rows.length) return '';
+    var nm = normName(stopName(r, i)), raw = normName(r.stopNames && r.stopNames[i]);
+    for(var k=0;k<rows.length;k++){
+      var rn = normName(rows[k].stop);
+      if(rn && (rn===nm || (raw && rn===raw)) && rows[k].time) return String(rows[k].time);
+    }
+    if(rows.length===(r.stops||[]).length && rows[i] && rows[i].time) return String(rows[i].time);
+    return '';
+  }
+
+  var nextStopEl = document.getElementById('nextStop');
+  var nsNum = document.getElementById('nsNum'), nsLbl = document.getElementById('nsLbl');
+  var nsName = document.getElementById('nsName'), nsDist = document.getElementById('nsDist'), nsTime = document.getElementById('nsTime');
+  // Which stop is the driver coming up to? At a stop (within AT_STOP_RADIUS_M) -> that stop. Otherwise, with a
+  // track: the first stop not yet passed along the track (same progress logic as the turn banner);
+  // without a track: the nearest stop. idx -1 = every stop has been passed.
+  function computeNextStop(r, latlng){
+    var stops = r.stops || [];
+    if(!stops.length) return null;
+    if(!latlng) return { idx:0, at:false, dist:null };
+    var ns = nearestStop(latlng, stops);
+    if(ns && ns.dist <= AT_STOP_RADIUS_M) return { idx:ns.index, at:true, dist:ns.dist };
+    var idx;
+    if(r.track && r.track.length>=2){
+      getRouteNav(r);
+      var progress = findNearestTrackIndex(latlng, r.track);
+      idx = -1;
+      for(var j=0;j<r._stopTrackIdx.length;j++){ if(r._stopTrackIdx[j] >= progress){ idx = j; break; } }
+    } else idx = ns.index;
+    return { idx:idx, at:false, dist: idx>=0 ? haversineMeters(latlng, stops[idx]) : null };
+  }
+  function updateNextStop(latlng){
+    if(!nextStopEl) return;
+    var r = activeId ? routes[activeId] : null;
+    var show = !!r && r.stops && r.stops.length && document.body.classList.contains('satnav-mode');
+    if(!show){ nextStopEl.style.display = 'none'; return; }
+    if(latlng===undefined) latlng = lastFix ? lastFix.latlng : null;
+    var res = computeNextStop(r, latlng);
+    nextStopEl.style.display = 'flex';
+    nextStopEl.classList.toggle('at', !!(res && res.at));
+    if(!res || res.idx<0){
+      nextStopEl.setAttribute('data-stop', 'done');
+      nsNum.textContent = '🏁'; nsLbl.textContent = 'ROUTE COMPLETE';
+      nsName.textContent = 'All stops passed'; nsDist.textContent = ''; nsTime.textContent = '';
+      return;
+    }
+    var i = res.idx, total = r.stops.length;
+    var fd = fmtDist(res.dist);
+    var nm = stopName(r, i), t = stopSchedTime(r, i);
+    nextStopEl.setAttribute('data-stop', String(i+1));
+    nsNum.textContent = String(i+1);
+    nsLbl.textContent = (res.at ? 'AT STOP ' : 'NEXT STOP ') + (i+1) + ' OF ' + total;
+    nsName.textContent = nm;
+    nsDist.textContent = res.dist==null ? '–' : (fd.v + fd.u).replace(' ','\u00a0');
+    nsTime.textContent = t ? ('Due ' + t) : '';
+  }
+
+  /* ---------------- Finish & submit run ---------------- */
+  // main.js supplies runCfg = { uid, companyId, newRunId(), submit(id, run) -> Promise } after sign-in.
+  // The run's counts live in `pax` (localStorage) until a submit succeeds; a failed/offline submit is kept in
+  // the 'rt_pending_runs' list (with its id, so a retry can never create a duplicate) and offers a Retry.
+  var runCfg = null;
+  var PENDING_KEY = 'rt_pending_runs';
+  var runModal = document.getElementById('runModal');
+  var runBody = document.getElementById('runBody'), runMsg = document.getElementById('runMsg');
+  var runSubmitBtn = document.getElementById('runSubmit'), runCancelBtn = document.getElementById('runCancel');
+  var finishBtn = document.getElementById('finishRunBtn'), snFinishBtn = document.getElementById('snFinishBtn');
+  var runPendingEl = document.getElementById('runPending');
+  var modalRun = null, modalRunId = null, modalBusy = false, modalDone = false;
+
+  function readPending(){
+    try{ var a = JSON.parse(localStorage.getItem(PENDING_KEY)||'[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+  }
+  function writePending(list){ try{ localStorage.setItem(PENDING_KEY, JSON.stringify(list)); }catch(e){} }
+  function myPending(){
+    return runCfg ? readPending().filter(function(p){ return p.uid===runCfg.uid && p.companyId===runCfg.companyId; }) : [];
+  }
+  function putPending(entry){
+    var list = readPending().filter(function(p){ return p.id!==entry.id; });
+    list.push(entry); writePending(list);
+  }
+  function dropPending(id){ writePending(readPending().filter(function(p){ return p.id!==id; })); }
+
+  function runSession(r, startedAt){
+    if(r.session==='AM' || r.session==='PM') return r.session;
+    var h = new Date(startedAt || Date.now()).getHours();
+    return h < 12 ? 'AM' : 'PM';
+  }
+  function sumVals(o){ var t=0; Object.keys(o||{}).forEach(function(k){ t += (o[k]|0); }); return t; }
+  // Builds the run document body from the counts stored for the active route.
+  function buildRun(r){
+    var stops = r.stops || [], n = stops.length;
+    var rows = stops.map(function(_, i){
+      return { index:i, name:stopName(r, i), boarded:(pax.stopsOn[i]|0), alighted:(pax.stopsOff[i]|0) };
+    });
+    var extraOn = 0, extraOff = 0;      // counts for stops that no longer exist (route edited mid-run) -> unscheduled
+    Object.keys(pax.stopsOn||{}).forEach(function(k){ if(+k >= n) extraOn += pax.stopsOn[k]|0; });
+    Object.keys(pax.stopsOff||{}).forEach(function(k){ if(+k >= n) extraOff += pax.stopsOff[k]|0; });
+    var uOn = (pax.adhocOn|0) + extraOn, uOff = (pax.adhocOff|0) + extraOff;
+    var tb = uOn, ta = uOff;
+    rows.forEach(function(x){ tb += x.boarded; ta += x.alighted; });
+    var started = pax.startedAt || Date.now();
+    return {
+      routeId:activeId, routeName:r.name || 'Route', session:runSession(r, started), startedAt:started,
+      totalBoarded:tb, totalAlighted:ta, unscheduledBoarded:uOn, unscheduledAlighted:uOff, stops:rows
+    };
+  }
+
+  function renderRunUi(){
+    var r = activeId ? routes[activeId] : null;
+    var has = !!r && !!runCfg;
+    var pend = myPending();
+    if(finishBtn) finishBtn.style.display = has ? '' : 'none';
+    if(snFinishBtn){
+      snFinishBtn.classList.toggle('on', has);
+      snFinishBtn.textContent = pend.length ? '⚠ Retry run upload' : '🏁 Finish & submit run';
+      snFinishBtn.classList.toggle('warn', pend.length>0);
+    }
+    if(runPendingEl){
+      runPendingEl.style.display = pend.length ? 'flex' : 'none';
+      var t = document.getElementById('runPendingText');
+      if(t) t.textContent = pend.length + (pend.length===1 ? ' finished run is' : ' finished runs are') + ' saved on this phone and not uploaded yet.';
+    }
+  }
+
+  function summaryHtml(run){
+    var h = '<div class="run-meta"><b>'+escapeHtml(run.routeName)+'</b> · '+escapeHtml(run.session)+'</div>'+
+      '<table class="run-table"><thead><tr><th>Stop</th><th class="n">Boarded</th><th class="n">Alighted</th></tr></thead><tbody>';
+    run.stops.forEach(function(s){
+      h += '<tr><td>'+(s.index+1)+'. '+escapeHtml(s.name)+'</td><td class="n">'+s.boarded+'</td><td class="n">'+s.alighted+'</td></tr>';
+    });
+    h += '<tr class="unsched"><td>Unscheduled (not at a stop)</td><td class="n">'+run.unscheduledBoarded+'</td><td class="n">'+run.unscheduledAlighted+'</td></tr>';
+    h += '<tr class="tot"><td>Total</td><td class="n" id="runTotB">'+run.totalBoarded+'</td><td class="n" id="runTotA">'+run.totalAlighted+'</td></tr></tbody></table>';
+    var sched = sumVals(pax.byStop);
+    if(run.routeId===activeId && sched) h += '<div class="run-note">Schedule-tab “onboard change” taps (net '+(sched>0?'+':'')+sched+') are not part of the per-stop figures.</div>';
+    return h;
+  }
+  function setModalState(state, msg){
+    // state: 'confirm' | 'busy' | 'failed' | 'done'
+    modalBusy = state==='busy'; modalDone = state==='done';
+    runMsg.textContent = msg || '';
+    runMsg.className = 'run-msg' + (state==='failed' ? ' err' : state==='done' ? ' ok' : '');
+    runSubmitBtn.disabled = state==='busy';
+    runCancelBtn.disabled = state==='busy';
+    runSubmitBtn.textContent = state==='busy' ? 'Submitting…' : state==='failed' ? 'Retry' : state==='done' ? 'Done' : 'Submit';
+    runCancelBtn.style.display = state==='done' ? 'none' : '';
+    runCancelBtn.textContent = state==='failed' ? 'Close (keep on phone)' : 'Cancel';
+  }
+  function openRunModal(fromBanner){
+    if(!runCfg) return;
+    var pend = myPending();
+    var r = activeId ? routes[activeId] : null;
+    var target = null;                       // a saved-but-not-uploaded run to retry
+    if(fromBanner===true && pend.length){
+      target = pend.filter(function(p){ return p.run.routeId===activeId; })[0] || pend[0];
+    }
+    if(target && target.run.routeId!==activeId){
+      modalRun = target.run; modalRunId = target.id;        // another route: resend exactly what was saved
+    } else if(r){
+      var same = target || pend.filter(function(p){ return p.run.routeId===activeId; })[0];
+      modalRun = buildRun(r);                               // counts may have grown since the failed attempt
+      modalRunId = same ? same.id : runCfg.newRunId();
+      if(same && same.run.startedAt) modalRun.startedAt = Math.min(same.run.startedAt, modalRun.startedAt);
+    } else if(pend.length){
+      modalRun = pend[0].run; modalRunId = pend[0].id;
+    } else return;
+    runBody.innerHTML = summaryHtml(modalRun);
+    runModal.style.display = 'flex';
+    var isRetry = pend.some(function(p){ return p.id===modalRunId; });
+    if(isRetry) setModalState('failed', 'This run is saved on your phone but is not uploaded yet. Tap Retry to upload it.');
+    else setModalState('confirm', '');
+  }
+  function closeRunModal(){ runModal.style.display = 'none'; modalBusy = false; renderRunUi(); }
+
+  function resetRunCounts(run){
+    if(run.routeId===activeId){
+      pax = newPax(); savePax(activeId); renderPax();
+    } else {
+      try{ localStorage.removeItem(paxKey(run.routeId)); }catch(e){}
+    }
+  }
+  function doSubmitRun(){
+    if(modalBusy || !modalRun || !runCfg) return;
+    if(modalDone){ closeRunModal(); return; }
+    var run = modalRun, id = modalRunId;
+    setModalState('busy', 'Uploading…');
+    putPending({ id:id, uid:runCfg.uid, companyId:runCfg.companyId, run:run, savedAt:Date.now() });   // safe copy first
+    Promise.resolve().then(function(){ return runCfg.submit(id, run); }).then(function(){
+      dropPending(id);
+      resetRunCounts(run);
+      renderRunUi();
+      setModalState('done', 'Run submitted ✔ — passenger counts for this route have been reset.');
+    }, function(e){
+      var why = (e && e.code==='offline') ? 'You appear to be offline.' : 'The upload failed (' + ((e && (e.code||e.message)) || 'unknown error') + ').';
+      renderRunUi();
+      setModalState('failed', why + ' The run is saved on this phone — tap Retry when you have signal.');
+    });
+  }
+  if(finishBtn) finishBtn.addEventListener('click', function(){ openRunModal(false); });
+  if(snFinishBtn) snFinishBtn.addEventListener('click', function(){ openRunModal(myPending().length>0); });
+  if(runSubmitBtn) runSubmitBtn.addEventListener('click', doSubmitRun);
+  if(runCancelBtn) runCancelBtn.addEventListener('click', function(){ if(!modalBusy) closeRunModal(); });
+  var runPendingBtn = document.getElementById('runPendingRetry');
+  if(runPendingBtn) runPendingBtn.addEventListener('click', function(){ openRunModal(true); });
+
   /* ---------------- Public API (used by js/main.js) ---------------- */
   function clearActiveRoute(){
     activeId = null;
@@ -1344,9 +1601,11 @@
     stopsGroup.clearLayers();
     document.getElementById('routeName').textContent = 'Round Tracker';
     document.getElementById('routeSub').textContent = 'No route loaded';
-    pax = { byStop:{}, byGpsStop:{}, adhoc:0 };
+    pax = newPax();
     renderPax();
     renderSchedule();
+    renderRunUi();
+    updateNextStop();
   }
   window.RoundTracker = {
     // fresh: { routeId: routeObject } for the signed-in user's company (real-time)
@@ -1370,6 +1629,8 @@
       }
     },
     // call after the driver view becomes visible (map was hidden while sizing)
+    // after sign-in: { uid, companyId, newRunId(), submit(id, run) -> Promise }  (see "Finish & submit run")
+    configureRuns: function(cfg){ runCfg = cfg; renderRunUi(); },
     show: function(){
       map.invalidateSize();
       var r = activeId ? routes[activeId] : null;
@@ -1378,6 +1639,7 @@
         if(b) map.fitBounds(b, { padding:[36,36] });
       }
       renderSchedule();
+      renderRunUi();
     }
   };
 

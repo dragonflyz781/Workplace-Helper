@@ -80,6 +80,7 @@
   <nav class="admin-tabs">
     <button class="tab-btn active" id="admTabRoutes">Routes</button>
     <button class="tab-btn" id="admTabDrivers">Drivers</button>
+    <button class="tab-btn" id="admTabRuns">Runs</button>
   </nav>
   <main class="admin-main">
     <section id="admRoutes">
@@ -108,6 +109,24 @@
       </div>
       <h2 class="sect">Your team</h2>
       <div id="driverList"></div>
+    </section>
+    <section id="admRuns" style="display:none">
+      <div class="card wide runs-card">
+        <h2>Submitted runs</h2>
+        <p class="muted">Every time a driver taps “Finish &amp; submit run”, the passenger counts per stop arrive here (newest first).</p>
+        <div class="run-filters">
+          <label>Route<select id="runFltRoute"><option value="">All routes</option></select></label>
+          <label>Driver<select id="runFltDriver"><option value="">All drivers</option></select></label>
+          <label>From<input type="date" id="runFltFrom"></label>
+          <label>To<input type="date" id="runFltTo"></label>
+        </div>
+        <div class="run-actions">
+          <div class="run-summary" id="runSummary" role="status">No runs yet.</div>
+          <button class="btn small" id="runFltClear" type="button">Clear filters</button>
+          <button class="btn small primary" id="runCsvBtn" type="button">⬇ Download CSV</button>
+        </div>
+      </div>
+      <div id="runList"></div>
     </section>
   </main>
 </div>
@@ -177,6 +196,12 @@
     <div class="sb-stat"><div class="sb-val" id="sbSpeed">–</div><div class="sb-lbl">MPH</div></div>
     <div class="sb-stat"><div class="sb-val" id="sbStop">–</div><div class="sb-lbl">NEXT STOP</div></div>
   </div>
+  <div class="next-stop" id="nextStop" style="display:none;" aria-live="polite">
+    <div class="ns-num" id="nsNum">–</div>
+    <div class="ns-main"><div class="ns-lbl" id="nsLbl">NEXT STOP</div><div class="ns-name" id="nsName">–</div></div>
+    <div class="ns-right"><div class="ns-dist" id="nsDist">–</div><div class="ns-time" id="nsTime"></div></div>
+  </div>
+  <button class="sn-finish" id="snFinishBtn">🏁 Finish &amp; submit run</button>
   <div class="compass-badge" aria-label="Points to true north">N<span class="tick" id="compassTick">▲</span></div>
   <div class="hdg-debug" id="hdgDebug"></div>
   <div class="zoom-cluster">
@@ -236,6 +261,8 @@
   <div class="gps-note" id="guideNote"></div>
   <button class="track-btn nav-btn" id="navBtn" style="display:none">🧭  Navigate this route in Google Maps ↗</button>
   <button class="track-btn nav-btn" id="previewBtn">🎬  Preview this route</button>
+  <button class="track-btn finish-btn" id="finishRunBtn" style="display:none">🏁  Finish &amp; submit run</button>
+  <div class="run-pending" id="runPending" style="display:none"><span id="runPendingText"></span><button class="chip-btn use" id="runPendingRetry">Retry</button></div>
   <div class="gps-note" id="gpsNote"></div>
 </div>
 </div>
@@ -243,6 +270,19 @@
 <div id="scheduleView" class="view">
   <div class="sched-body" id="schedBody"></div>
 </div>
+</div>
+
+<!-- Finish & submit run: confirm summary -->
+<div class="modal-back" id="runModal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="runTitle">
+  <div class="modal">
+    <h2 id="runTitle">Finish &amp; submit run</h2>
+    <div id="runBody"></div>
+    <div class="run-msg" id="runMsg" role="status"></div>
+    <div class="modal-btns">
+      <button class="btn" id="runCancel" type="button">Cancel</button>
+      <button class="btn primary" id="runSubmit" type="button">Submit</button>
+    </div>
+  </div>
 </div>
 
 <div class="scrim" id="scrim"></div>

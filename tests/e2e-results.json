@@ -1,6 +1,6 @@
 {
- "passed": 51,
- "total": 51,
+ "passed": 109,
+ "total": 109,
  "checks": [
   [
    "placeholder firebase-config.js shows the 'connect Firebase' setup screen",
@@ -20,12 +20,12 @@
   [
    "users/{uid} has role admin + companyId",
    true,
-   "{'companyId': '9uP3rdQmoHQ7Jhr1bbcR', 'role': 'admin', 'name': 'Ann Admin', 'email': 'ann@alpha.test', 'createdAt': {'seconds': 1790937670, 'nanoseconds': 490000000}}"
+   "{'companyId': 'IS5GYqM7Osqg6q7dK8Q2', 'role': 'admin', 'name': 'Ann Admin', 'email': 'ann@alpha.test', 'createdAt': {'seconds': 1790974527, 'nanoseconds': 865000000}}"
   ],
   [
    "company doc created with ownerUid",
    true,
-   "{'name': 'Alpha Coaches', 'ownerUid': 'zTRrhHjL69pTNJ7PrrcvEmO1zour', 'createdAt': {'seconds': 1790937670, 'nanoseconds': 490000000}}"
+   "{'name': 'Alpha Coaches', 'ownerUid': 'ifELZbyxr5zoYAjcu6h5i55C8ezj', 'createdAt': {'seconds': 1790974527, 'nanoseconds': 865000000}}"
   ],
   [
    "GPX upload: 4 named route points -> stops",
@@ -65,7 +65,7 @@
   [
    "stored doc: stops/timetable/operator/track fields",
    true,
-   "{'name': 'Gorseinon Sample (AM)', 'category': 'school', 'session': 'AM', 'note': 'Test route created by the e2e test', 'capacity': '53 seats', 'addedAt': '2026-10-02T10:41:13.791Z', 'operator': {'name': 'Alpha Coaches Ltd', 'tel': '01792 000000', 'email': 'ops@alpha.test'}, 'contacts': [{'label': 'Depot', 'tel': '01792 111111'}], 'timetable': {'morning': [{'stop': 'Gorseinon Square', 'time': '07:40'}, {'stop': 'Pontarddulais Road', 'time': '07:52'}, {'stop': 'Penyrheol Comprehensive School', 'time': '08:05'}, {'stop': 'Gorseinon College', 'time': '08:20'}], 'afternoon': [{'stop': 'Gorseinon College', 'time': '15:35'}, {'stop': 'Clydach Post Office', 'time': '16:10'}], 'afternoonNote': 'Wait 5 minutes for late finishers'}, 'stops': [{'lat': 51.665, 'lng': -4.038, 'name': 'Gorseinon Square'}, {'lat': 51.67, 'lng': -3.95, 'name': 'Pontarddulais Road'}, {'lat': 51.658, 'lng': -4.06, 'name': 'Penyrheol Comprehensive School'}, {'lat': 51.68533, 'lng': -3.98872, 'name': 'Gorseinon College'}], 'trackEnc': '...', 'trackPoints': 76, 'trackOriginalPoints': 76, 'updatedBy': 'zTRrhHjL69pTNJ7PrrcvEmO1zour', 'updatedAt': {'seconds': 1790937673, 'nanoseconds': 827000000}}"
+   "{'name': 'Gorseinon Sample (AM)', 'category': 'school', 'session': 'AM', 'note': 'Test route created by the e2e test', 'capacity': '53 seats', 'addedAt': '2026-10-02T20:55:31.017Z', 'operator': {'name': 'Alpha Coaches Ltd', 'tel': '01792 000000', 'email': 'ops@alpha.test'}, 'contacts': [{'label': 'Depot', 'tel': '01792 111111'}], 'timetable': {'morning': [{'stop': 'Gorseinon Square', 'time': '07:40'}, {'stop': 'Pontarddulais Road', 'time': '07:52'}, {'stop': 'Penyrheol Comprehensive School', 'time': '08:05'}, {'stop': 'Gorseinon College', 'time': '08:20'}], 'afternoon': [{'stop': 'Gorseinon College', 'time': '15:35'}, {'stop': 'Clydach Post Office', 'time': '16:10'}], 'afternoonNote': 'Wait 5 minutes for late finishers'}, 'stops': [{'lat': 51.665, 'lng': -4.038, 'name': 'Gorseinon Square'}, {'lat': 51.67, 'lng': -3.95, 'name': 'Pontarddulais Road'}, {'lat': 51.658, 'lng': -4.06, 'name': 'Penyrheol Comprehensive School'}, {'lat': 51.68533, 'lng': -3.98872, 'name': 'Gorseinon College'}], 'trackEnc': '...', 'trackPoints': 76, 'trackOriginalPoints': 76, 'updatedBy': 'ifELZbyxr5zoYAjcu6h5i55C8ezj', 'updatedAt': {'seconds': 1790974531, 'nanoseconds': 58000000}}"
   ],
   [
    "edit: form pre-filled from Firestore",
@@ -150,12 +150,12 @@
   [
    "driver Schedule tab shows timetable times, stops and note",
    true,
-   "Test route created by the e2e test\nMORNING\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\n07:52\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\n08:05\nGorseinon College\nDone\nOnboard change:\n\u2212\n0\n+\n08:20\nAFTERNOON\nGorseinon College\nStarts in 3h"
+   "Test route created by the e2e test\nMORNING\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\n07:52\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\n08:05\nGorseinon College\nDone\nOnboard change:\n\u2212\n0\n+\n08:20\nAFTERNOON\nGorseinon College\nDone\nOnboard"
   ],
   [
    "Sat-Nav mode starts: top bar with clock/speed/limit visible, no GPS/Google Maps buttons",
    true,
-   "{'mode': True, 'clock': '11:41', 'topVisible': 'flex', 'speedBox': True, 'limitBox': True, 'noGps': True, 'noGmaps': True, 'bearing': True}"
+   "{'mode': True, 'clock': '21:55', 'topVisible': 'flex', 'speedBox': True, 'limitBox': True, 'noGps': True, 'noGmaps': True, 'bearing': True}"
   ],
   [
    "real-time: admin edit appears on driver's screen without reload",
@@ -228,6 +228,296 @@
    ""
   ],
   [
+   "e2e setup: stops 1-3 lie along the track in order",
+   true,
+   "[0, 25, 50]"
+  ],
+  [
+   "e2e setup: stops are far enough apart for the 50 m tests",
+   true,
+   "1705.4323211969804"
+  ],
+  [
+   "Sat-Nav running on the run-test route",
+   true,
+   ""
+  ],
+  [
+   "run test starts with no stored counts for this route",
+   true,
+   ""
+  ],
+  [
+   "e2e setup: mid-points are >50 m from every stop",
+   true,
+   "[1168, 1238, 7310, 8933]"
+  ],
+  [
+   "Next stop card: number, name, distance and scheduled time (stop 2 of 4, 07:52)",
+   true,
+   "('2 | NEXT STOP 2 OF 4 | Pontarddulais Road | 1.2\\xa0km | Due 07:52', 1238)"
+  ],
+  [
+   "Next stop card number badge shows 2",
+   true,
+   ""
+  ],
+  [
+   "Next stop updates live as the driver progresses (stop 3, 08:05)",
+   true,
+   "3 | NEXT STOP 3 OF 4 | Gorseinon Square | 3.2\u00a0km | Due 08:05"
+  ],
+  [
+   "Existing Sat-Nav top bar intact next to Next stop (turn instruction, clock, speed, limit)",
+   true,
+   ""
+  ],
+  [
+   "within 50 m (20 m): context says 'At Stop 1 \u2014 taps log to this stop'",
+   true,
+   "At Stop 1 \u2014 taps log to this stop"
+  ],
+  [
+   "Next stop card switches to 'AT STOP 1' while within 50 m",
+   true,
+   "1 | AT STOP 1 OF 4 | Clydach (Post Office) | 20\u00a0m | Due 07:40"
+  ],
+  [
+   "outside 50 m (120 m): context says taps log as unscheduled",
+   true,
+   "Between stops \u2014 taps log as unscheduled"
+  ],
+  [
+   "45 m from a stop still counts as at the stop",
+   true,
+   "At Stop 2 \u2014 taps log to this stop"
+  ],
+  [
+   "60 m from a stop is NOT at the stop (50 m radius)",
+   true,
+   "Between stops \u2014 taps log as unscheduled"
+  ],
+  [
+   "localStorage run state has per-stop counts (stop1 3/1, stop2 2/0, stop3 1/1, unscheduled 2/0)",
+   true,
+   "{'byStop': {}, 'byGpsStop': {'0': 2, '1': 2, '2': 0}, 'adhoc': 2, 'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'startedAt': 1790974553783}"
+  ],
+  [
+   "Finish button visible in Sat-Nav view",
+   true,
+   ""
+  ],
+  [
+   "after a page refresh the per-stop counts are still there",
+   true,
+   "{'byStop': {}, 'byGpsStop': {'0': 2, '1': 2, '2': 0}, 'adhoc': 2, 'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'startedAt': 1790974553783}"
+  ],
+  [
+   "'Finish & submit run' button visible in driver view when a route is active",
+   true,
+   ""
+  ],
+  [
+   "confirm summary shows route name, per-stop boarded/alighted, unscheduled and total boarded",
+   true,
+   "Finish & submit run\nRun Test Route (AM) \u00b7 AM\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t1\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t2\t0\nTotal\t8\t2\nCancel\nSubmit"
+  ],
+  [
+   "Cancel closes the dialog and keeps the counts; nothing written",
+   true,
+   ""
+  ],
+  [
+   "exactly one run document written at companies/{cid}/runs/{autoId}",
+   true,
+   "['hjft1dIg3IX76wTaIx5i']"
+  ],
+  [
+   "run doc has exactly the specified keys",
+   true,
+   "['driverName', 'driverUid', 'id', 'routeId', 'routeName', 'session', 'startedAt', 'stops', 'submittedAt', 'totalAlighted', 'totalBoarded', 'unscheduledAlighted', 'unscheduledBoarded']"
+  ],
+  [
+   "run doc: routeId/routeName/session/driverUid/driverName (from users/{uid}.name)",
+   true,
+   "{'id': 'hjft1dIg3IX76wTaIx5i', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': 1790974553783, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974557620}"
+  ],
+  [
+   "run doc: totals + unscheduled",
+   true,
+   "{'id': 'hjft1dIg3IX76wTaIx5i', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': 1790974553783, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974557620}"
+  ],
+  [
+   "run doc: per-stop {index,name,boarded,alighted}",
+   true,
+   "[{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}]"
+  ],
+  [
+   "run doc: startedAt <= submittedAt, submittedAt is recent (server time)",
+   true,
+   "(1790974553783, 1790974557620)"
+  ],
+  [
+   "after submit the run counts for that route are reset (localStorage)",
+   true,
+   "{'byStop': {}, 'byGpsStop': {}, 'adhoc': 0, 'stopsOn': {}, 'stopsOff': {}, 'adhocOn': 0, 'adhocOff': 0, 'startedAt': None}"
+  ],
+  [
+   "no pending runs left on the phone",
+   true,
+   ""
+  ],
+  [
+   "driver cannot update a run (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver cannot delete a run (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver cannot list all runs (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver can read their own runs",
+   true,
+   "READ 1"
+  ],
+  [
+   "driver cannot forge a run for another uid / with client timestamp",
+   true,
+   "permission-denied"
+  ],
+  [
+   "offline submit: error shown with Retry button",
+   true,
+   "You appear to be offline. The run is saved on this phone \u2014 tap Retry when you have signal."
+  ],
+  [
+   "offline submit: run kept locally (pending list + banner) and counts not reset",
+   true,
+   ""
+  ],
+  [
+   "retry after reconnect uploads the run and clears the pending copy",
+   true,
+   ""
+  ],
+  [
+   "exactly 2 runs now (no duplicate from the retry); 2nd run: unscheduled 2 boarded / 1 alighted",
+   true,
+   "{'id': 'K3DaMm1rONUDd7YnYMFp', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': {'seconds': 1790974558, 'nanoseconds': 0}, 'totalBoarded': 2, 'totalAlighted': 1, 'unscheduledBoarded': 2, 'unscheduledAlighted': 1, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 0, 'alighted': 0}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 0, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 0, 'alighted': 0}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974558439}"
+  ],
+  [
+   "stop with no name falls back to 'Stop N' and shows no invented time",
+   true,
+   "1 | AT STOP 1 OF 20 | Stop 1 | 0\u00a0m"
+  ],
+  [
+   "Runs tab: newest first (row 1 = 2nd run: 2 boarded / 1 alighted; row 2 = 1st run: 8 / 2)",
+   true,
+   "(['02 Oct 2026 21:55', 'Dave Driver', 'Run Test Route (AM)', 'AM', '2', '1'], ['02 Oct 2026 21:55', 'Dave Driver', 'Run Test Route (AM)', 'AM', '8', '2'])"
+  ],
+  [
+   "Runs tab: date/time column is filled",
+   true,
+   "02 Oct 2026 21:55"
+  ],
+  [
+   "Runs tab: totals summary (10 boarded, 2 runs)",
+   true,
+   "10 passengers boarded \u00b7 2 runs (3 alighted)"
+  ],
+  [
+   "expanded run: per-stop table (stop, boarded, alighted) + unscheduled + total",
+   true,
+   "Stop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t1\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t2\t0\nTotal\t8\t2\nStarted 02 Oct 2026 21:55 \u00b7 submitted 02 Oct 2026 21:55\nDelete run"
+  ],
+  [
+   "filter dropdowns list the routes and drivers that have runs",
+   true,
+   "(['All routes', 'Run Test Route (AM)'], ['All drivers', 'Dave Driver'])"
+  ],
+  [
+   "filter by route and by driver keep both runs",
+   true,
+   "(2, 2)"
+  ],
+  [
+   "date filter: From tomorrow -> no runs",
+   true,
+   "0 passengers boarded \u00b7 0 runs (0 alighted; filtered from 2)"
+  ],
+  [
+   "date filter: yesterday..today -> both runs; summary updates",
+   true,
+   ""
+  ],
+  [
+   "date filter: To yesterday -> no runs",
+   true,
+   ""
+  ],
+  [
+   "Clear filters restores the full list",
+   true,
+   ""
+  ],
+  [
+   "CSV: header + one row per stop per run (+ 'Unscheduled' row): 2 runs x (4 stops + 1) = 10 rows",
+   true,
+   "(['Run ID', 'Submitted', 'Started', 'Driver', 'Route', 'Session', 'Stop number', 'Stop name', 'Boarded', 'Alighted'], 10)"
+  ],
+  [
+   "CSV: per-stop numbers and driver name correct",
+   true,
+   "{('K3DaMm1rONUDd7YnYMFp', '1'): ('Clydach (Post Office)', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '2'): ('Pontarddulais Road', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '3'): ('Gorseinon Square', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', ''): ('Unscheduled', '2', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '1'): ('Clydach (Post Office)', '3', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '2'): ('Pontarddulais Road', '2', '0', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '3'): ('Gorseinon Square', '1', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', ''): ('Unscheduled', '2', '0', 'Dave Driver')}"
+  ],
+  [
+   "Download CSV is disabled when the filtered set is empty",
+   true,
+   ""
+  ],
+  [
+   "admin can delete a run (gone from list and from Firestore; summary updates)",
+   true,
+   "(['hjft1dIg3IX76wTaIx5i'], '8 passengers boarded \u00b7 1 run (2 alighted)')"
+  ],
+  [
+   "even an admin cannot update a run (write-once)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B's Runs tab shows no runs (A's run is not visible)",
+   true,
+   "Submitted runs\n\nEvery time a driver taps \u201cFinish & submit run\u201d, the passenger counts per stop arrive here (newest first).\n\nRoute\nAll routes\nDriver\nAll drivers\nFrom\nTo\nNo runs yet.\nClear filters\n\u2b07 Down"
+  ],
+  [
+   "company B admin cannot list A's runs (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B admin cannot read a specific A run (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B admin cannot delete A's run (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B cannot write a run into A (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
    "removed driver is locked out (no company linked)",
    true,
    " view-orphan"
@@ -261,6 +551,11 @@
  "console_errors": [
   "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
   "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
+  "[driver] Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+  "[driver] Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+  "[driver] Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+  "[driver] Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+  "[driver] Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
   "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
   "[driver] Failed to load resource: the server responded with a status of 400 (Bad Request)"
  ],

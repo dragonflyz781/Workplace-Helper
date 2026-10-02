@@ -179,3 +179,109 @@ test("unknown collections are closed", async () => {
   await assertFails(setDoc(doc(as("adminA"), "secrets/x"), { a: 1 }));
   await assertFails(getDoc(doc(as("adminA"), "secrets/x")));
 });
+
+/* ------------------------------------------------------------------ runs (submitted driver runs) */
+const mkRun = (uid, extra = {}) => ({
+  routeId: "r1", routeName: "A route", session: "AM", driverUid: uid, driverName: "Dave",
+  startedAt: new Date(), submittedAt: serverTimestamp(),
+  totalBoarded: 5, totalAlighted: 2, unscheduledBoarded: 1, unscheduledAlighted: 0,
+  stops: [{ index: 0, name: "Stop 1", boarded: 4, alighted: 2 }],
+  ...extra
+});
+const seedRun = async (path, uid = "driverA", extra = {}) => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), path), { ...mkRun(uid, extra), submittedAt: new Date() });
+  });
+};
+
+test("runs: driver can create a run for own company with own uid", async () => {
+  await assertSucceeds(setDoc(doc(as("driverA"), "companies/A/runs/run1"), mkRun("driverA")));
+});
+
+test("runs: admin (driving) can also create a run with own uid", async () => {
+  await assertSucceeds(setDoc(doc(as("adminA"), "companies/A/runs/run1"), mkRun("adminA")));
+});
+
+test("runs: driverUid must equal the signed-in uid (no impersonation)", async () => {
+  await assertFails(setDoc(doc(as("driverA"), "companies/A/runs/x1"), mkRun("adminA")));
+  await assertFails(setDoc(doc(as("adminA"), "companies/A/runs/x2"), mkRun("driverA")));
+});
+
+test("runs: cross-company create is denied (driver and admin of B cannot write into A, nor A into B)", async () => {
+  await assertFails(setDoc(doc(as("driverB"), "companies/A/runs/x1"), mkRun("driverB")));
+  await assertFails(setDoc(doc(as("adminB"), "companies/A/runs/x2"), mkRun("adminB")));
+  await assertFails(setDoc(doc(as("driverA"), "companies/B/runs/x3"), mkRun("driverA")));
+  await assertFails(setDoc(doc(as("stranger"), "companies/A/runs/x4"), mkRun("stranger")));
+  await assertFails(setDoc(doc(anon(), "companies/A/runs/x5"), mkRun("driverA")));
+});
+
+test("runs: restricted key set (no extra fields, no missing fields, correct types)", async () => {
+  const d = as("driverA");
+  await assertFails(setDoc(doc(d, "companies/A/runs/k1"), mkRun("driverA", { isAdmin: true })));          // extra key
+  await assertFails(setDoc(doc(d, "companies/A/runs/k2"), mkRun("driverA", { companyId: "A" })));         // extra key
+  const { stops, ...noStops } = mkRun("driverA");
+  await assertFails(setDoc(doc(d, "companies/A/runs/k3"), noStops));                                      // missing key
+  await assertFails(setDoc(doc(d, "companies/A/runs/k4"), mkRun("driverA", { totalBoarded: "5" })));      // wrong type
+  await assertFails(setDoc(doc(d, "companies/A/runs/k5"), mkRun("driverA", { totalBoarded: -1 })));       // negative
+  await assertFails(setDoc(doc(d, "companies/A/runs/k6"), mkRun("driverA", { totalBoarded: 1e7 })));      // absurd
+  await assertFails(setDoc(doc(d, "companies/A/runs/k7"), mkRun("driverA", { stops: "none" })));          // not a list
+  await assertFails(setDoc(doc(d, "companies/A/runs/k8"), mkRun("driverA", { startedAt: "yesterday" }))); // not a timestamp
+});
+
+test("runs: sane size limits (names, stops list, session)", async () => {
+  const d = as("driverA");
+  await assertFails(setDoc(doc(d, "companies/A/runs/s1"), mkRun("driverA", { routeName: "x".repeat(201) })));
+  await assertFails(setDoc(doc(d, "companies/A/runs/s2"), mkRun("driverA", { driverName: "x".repeat(121) })));
+  await assertFails(setDoc(doc(d, "companies/A/runs/s3"), mkRun("driverA", { session: "morning-and-more" })));
+  await assertFails(setDoc(doc(d, "companies/A/runs/s4"), mkRun("driverA", { routeId: "" })));
+  const many = Array.from({ length: 501 }, (_, i) => ({ index: i, name: "s", boarded: 0, alighted: 0 }));
+  await assertFails(setDoc(doc(d, "companies/A/runs/s5"), mkRun("driverA", { stops: many })));
+  const ok = Array.from({ length: 500 }, (_, i) => ({ index: i, name: "s", boarded: 0, alighted: 0 }));
+  await assertSucceeds(setDoc(doc(d, "companies/A/runs/s6"), mkRun("driverA", { stops: ok })));
+});
+
+test("runs: submittedAt must be the server time (cannot back-date)", async () => {
+  await assertFails(setDoc(doc(as("driverA"), "companies/A/runs/t1"), mkRun("driverA", { submittedAt: new Date("2020-01-01") })));
+});
+
+test("runs: nobody can update a run (driver, owner-driver, admin, other company)", async () => {
+  await seedRun("companies/A/runs/u1");
+  await assertFails(updateDoc(doc(as("driverA"), "companies/A/runs/u1"), { totalBoarded: 999 }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A/runs/u1"), { totalBoarded: 999 }));
+  await assertFails(updateDoc(doc(as("adminB"), "companies/A/runs/u1"), { totalBoarded: 999 }));
+  // overwriting with set() on an existing id is an update too
+  await assertFails(setDoc(doc(as("driverA"), "companies/A/runs/u1"), mkRun("driverA", { totalBoarded: 999 })));
+});
+
+test("runs: admin reads all runs of own company; driver only their own; other companies nothing", async () => {
+  await seedRun("companies/A/runs/mine", "driverA");
+  await seedRun("companies/A/runs/admins", "adminA");
+  await seedRun("companies/B/runs/b1", "driverB");
+  // admin A: everything in A
+  const all = await assertSucceeds(getDocs(collection(as("adminA"), "companies/A/runs")));
+  assert.equal(all.size, 2);
+  await assertSucceeds(getDoc(doc(as("adminA"), "companies/A/runs/mine")));
+  // driver A: own only
+  await assertSucceeds(getDoc(doc(as("driverA"), "companies/A/runs/mine")));
+  await assertFails(getDoc(doc(as("driverA"), "companies/A/runs/admins")));
+  await assertFails(getDocs(collection(as("driverA"), "companies/A/runs")));                                  // unfiltered list
+  const own = await assertSucceeds(getDocs(query(collection(as("driverA"), "companies/A/runs"), where("driverUid", "==", "driverA"))));
+  assert.equal(own.size, 1);
+  await assertFails(getDocs(query(collection(as("driverA"), "companies/A/runs"), where("driverUid", "==", "adminA"))));
+  // cross-company reads denied, incl. collection-group queries
+  await assertFails(getDoc(doc(as("adminB"), "companies/A/runs/mine")));
+  await assertFails(getDocs(collection(as("adminB"), "companies/A/runs")));
+  await assertFails(getDoc(doc(as("driverB"), "companies/A/runs/mine")));
+  await assertFails(getDocs(collection(as("adminA"), "companies/B/runs")));
+  await assertFails(getDoc(doc(as("stranger"), "companies/A/runs/mine")));
+  await assertFails(getDoc(doc(anon(), "companies/A/runs/mine")));
+  await assertFails(getDocs(collectionGroup(as("adminA"), "runs")));
+});
+
+test("runs: only admins of the company may delete runs", async () => {
+  await seedRun("companies/A/runs/d1"); await seedRun("companies/A/runs/d2"); await seedRun("companies/A/runs/d3");
+  await assertFails(deleteDoc(doc(as("driverA"), "companies/A/runs/d1")));     // even the run's own driver
+  await assertFails(deleteDoc(doc(as("adminB"), "companies/A/runs/d1")));     // other company's admin
+  await assertFails(deleteDoc(doc(as("driverB"), "companies/A/runs/d1")));
+  await assertSucceeds(deleteDoc(doc(as("adminA"), "companies/A/runs/d1")));
+});
