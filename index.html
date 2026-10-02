@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Round Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E🚌%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/leaflet.css">
+<link rel="stylesheet" href="css/app.css">      <!-- the original driver app styles, unchanged -->
+<link rel="stylesheet" href="css/admin.css">    <!-- sign-in, admin and layout additions -->
+</head>
+<body class="view-boot">
+
+<!-- ============ Loading ============ -->
+<div id="bootScreen" class="screen"><div class="boot-msg">Loading…</div></div>
+
+<!-- ============ Firebase not configured yet ============ -->
+<div id="setupScreen" class="screen">
+  <div class="card wide">
+    <h1>Almost there – connect Firebase</h1>
+    <p>This app needs a free Firebase project to store companies, drivers and routes.</p>
+    <ol>
+      <li>Create the project (see <b>README.md</b>, section 1).</li>
+      <li>Open <code>js/firebase-config.js</code> and paste in your project's values.</li>
+      <li>Reload this page.</li>
+    </ol>
+    <p class="muted">Just want to look around first? If you are running this on your own computer, open
+      <code>http://localhost:5000/?emulator=1</code> after running <code>npm run demo</code> (see README, section 3).</p>
+  </div>
+</div>
+
+<!-- ============ Sign in / register ============ -->
+<div id="authScreen" class="screen">
+  <div class="card">
+    <div class="brand"><span class="brand-glyph">🚌</span><h1>Round Tracker</h1></div>
+    <div class="seg" role="tablist">
+      <button class="seg-btn active" id="segSignIn" type="button">Sign in</button>
+      <button class="seg-btn" id="segRegister" type="button">Register your company</button>
+    </div>
+
+    <form id="signInForm" autocomplete="on">
+      <label>Email<input type="email" id="siEmail" autocomplete="username" required></label>
+      <label>Password<input type="password" id="siPass" autocomplete="current-password" required></label>
+      <button class="btn primary" type="submit" id="siBtn">Sign in</button>
+      <button class="link-btn" type="button" id="forgotBtn">Forgot password?</button>
+    </form>
+
+    <form id="registerForm" style="display:none" autocomplete="off">
+      <p class="muted">Create a new company account. You become its administrator and can then add routes and invite your drivers.</p>
+      <label>Company name<input type="text" id="rgCompany" required maxlength="120"></label>
+      <label>Your name <span class="muted">(optional)</span><input type="text" id="rgName" maxlength="80"></label>
+      <label>Admin email<input type="email" id="rgEmail" autocomplete="email" required></label>
+      <label>Password <span class="muted">(at least 6 characters)</span><input type="password" id="rgPass" autocomplete="new-password" minlength="6" required></label>
+      <button class="btn primary" type="submit" id="rgBtn">Create company</button>
+    </form>
+    <div class="form-msg" id="authMsg" role="alert"></div>
+  </div>
+</div>
+
+<!-- Signed in but no company profile -->
+<div id="orphanScreen" class="screen">
+  <div class="card">
+    <h1>No company linked</h1>
+    <p>You are signed in as <b id="orphanEmail"></b>, but this account isn't linked to a company (it may have been removed by your administrator).</p>
+    <div class="row"><button class="btn" id="orphanRetry">Try again</button><button class="btn primary" id="orphanOut">Sign out</button></div>
+  </div>
+</div>
+
+<!-- ============ Admin ============ -->
+<div id="adminScreen" class="screen admin">
+  <header class="admin-top">
+    <div class="admin-title"><h1 id="adminCompany">Company</h1><div class="sub" id="adminWho"></div></div>
+    <button class="btn" id="adminToDriver">🧭 Driver view</button>
+    <button class="icon-btn" id="adminTheme" aria-label="Toggle theme">◐</button>
+    <button class="btn" id="adminSignOut">Sign out</button>
+  </header>
+  <nav class="admin-tabs">
+    <button class="tab-btn active" id="admTabRoutes">Routes</button>
+    <button class="tab-btn" id="admTabDrivers">Drivers</button>
+  </nav>
+  <main class="admin-main">
+    <section id="admRoutes">
+      <div class="toolbar">
+        <button class="btn primary" id="newRouteBtn">＋ New route</button>
+        <button class="btn" id="importSampleBtn" title="Adds Keith's 38 Swansea school/college routes to this company">Import sample routes</button>
+      </div>
+      <div class="muted" id="routesStatus"></div>
+      <div id="adminRouteList"></div>
+    </section>
+    <section id="admDrivers" style="display:none">
+      <div class="card wide">
+        <h2>Add a driver</h2>
+        <p class="muted">This creates a login for the driver. Give them the email and temporary password; they can change it with “Forgot password?” on the sign-in screen.</p>
+        <form id="driverForm" autocomplete="off">
+          <div class="grid3">
+            <label>Name<input type="text" id="dvName" required maxlength="80"></label>
+            <label>Email<input type="email" id="dvEmail" required></label>
+            <label>Temporary password
+              <span class="input-row"><input type="text" id="dvPass" minlength="6" required autocomplete="off"><button type="button" class="btn small" id="dvGen">Generate</button></span>
+            </label>
+          </div>
+          <button class="btn primary" type="submit" id="dvBtn">Create driver login</button>
+        </form>
+        <div class="form-msg" id="driverMsg" role="status"></div>
+      </div>
+      <h2 class="sect">Your team</h2>
+      <div id="driverList"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ Route editor ============ -->
+<div id="editorScreen" class="screen admin">
+  <header class="admin-top">
+    <button class="btn" id="edBack">← Back</button>
+    <div class="admin-title"><h1 id="edTitle">New route</h1></div>
+    <button class="btn primary" id="edSave">Save route</button>
+  </header>
+  <main class="admin-main editor" id="edBody"></main>
+</div>
+
+<div id="toast" class="toast" role="status"></div>
+
+<!-- ============ Driver view (the original app) ============ -->
+<div id="driverApp">
+<div class="topbar">
+  <button class="icon-btn" id="menuBtn" aria-label="Routes">☰</button>
+  <div class="topbar-title">
+    <h1 id="routeName">Round Tracker</h1>
+    <div class="sub" id="routeSub">No route loaded</div>
+  </div>
+  <button class="icon-btn theme-toggle" id="themeBtn" aria-label="Toggle theme">◐</button>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabMapBtn">Map</button>
+  <button class="tab-btn" id="tabSchedBtn">Schedule</button>
+</div>
+
+<div id="views">
+<div id="mapView" class="view">
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="nav-banner" id="navBanner" style="display:none;">
+    <div class="nav-card">
+      <div class="arrow" id="navTurnArrow">→</div>
+      <div class="txt"><div class="lbl">NEXT TURN</div><div class="val" id="navTurnDist">–</div></div>
+    </div>
+    <div class="nav-card">
+      <div class="arrow">📍</div>
+      <div class="txt"><div class="lbl">NEXT STOP</div><div class="val" id="navStopDist">–</div></div>
+    </div>
+  </div>
+
+  <div class="satnav-top" id="satnavTop" style="display:none;">
+    <div class="satnav-arrow" id="satnavArrow">↑</div>
+    <div class="satnav-info">
+      <div class="satnav-dist" id="satnavDist">–</div>
+      <div class="satnav-instr" id="satnavInstr">–</div>
+    </div>
+    <div class="satnav-right">
+      <div class="sn-clock" id="snClock">--:--</div>
+      <div class="sn-row">
+        <div class="sn-limit unknown" id="snLimit" title="Speed limit">–</div>
+        <div class="sn-speed" id="snSpeedBox"><b id="snSpeed">0</b><small>MPH</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="satnav-then" id="satnavThen" style="display:none;"></div>
+
+  <div class="satnav-bottom" id="satnavBottom" style="display:none;">
+    <div class="sb-stat"><div class="sb-val" id="sbEta">–</div><div class="sb-lbl">ETA</div></div>
+    <div class="sb-stat"><div class="sb-val" id="sbRemaining">–</div><div class="sb-lbl">REMAINING</div></div>
+    <div class="sb-stat"><div class="sb-val" id="sbSpeed">–</div><div class="sb-lbl">MPH</div></div>
+    <div class="sb-stat"><div class="sb-val" id="sbStop">–</div><div class="sb-lbl">NEXT STOP</div></div>
+  </div>
+  <div class="compass-badge" aria-label="Points to true north">N<span class="tick" id="compassTick">▲</span></div>
+  <div class="hdg-debug" id="hdgDebug"></div>
+  <div class="zoom-cluster">
+    <button class="map-fab zoom-btn" id="zoomInFab" aria-label="Zoom in">+</button>
+    <button class="map-fab zoom-btn" id="zoomOutFab" aria-label="Zoom out">−</button>
+  </div>
+  <button class="map-fab" id="fsFab" aria-label="Full screen map">⛶</button>
+  <button class="map-fab" id="locateFab" aria-label="Centre on me">◎</button>
+  <button class="fs-exit" id="fsExit" style="display:none;">✕ Exit full screen</button>
+  <div class="fs-pax-wrap" id="fsPaxWrap">
+    <div class="fs-pax-context" id="fsPaxContext"></div>
+    <div class="fs-pax" id="fsPax">
+      <button class="fs-pax-btn off" id="fsPaxOff" aria-label="Passenger got off">− Alight</button>
+      <div class="fs-pax-count" id="fsPaxCount">0</div>
+      <button class="fs-pax-btn on" id="fsPaxOn" aria-label="Passenger got on">+ Board</button>
+    </div>
+  </div>
+  <div class="empty-state" id="emptyState">
+    <div class="glyph">🧭</div>
+    <h2>No routes yet</h2>
+    <p id="emptyMsg">Your company has no routes yet. An administrator can add them from the Admin screen.</p>
+    <button class="chip-btn use" id="emptyAdminBtn" style="display:none">Open Admin screen</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="stats-row">
+    <div class="stat">
+      <div class="stat-label">SPEED</div>
+      <div class="stat-value"><span id="statSpeed">–</span><small> mph</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">OFF ROUTE</div>
+      <div class="stat-value"><span id="statDist">–</span><small id="statDistUnit"></small></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">NEAREST STOP</div>
+      <div class="stat-value" style="font-size:18px;"><span id="statStop">–</span></div>
+      <div class="stat-sub" id="statStopDist"></div>
+    </div>
+  </div>
+
+  <div class="pax-row" id="paxRowMap">
+    <div class="pax-info">
+      <div class="pax-label">ONBOARD</div>
+      <div class="pax-count" id="paxCountMap">0</div>
+    </div>
+    <button class="pax-btn off" data-pax="off">− Alight</button>
+    <button class="pax-btn on" data-pax="on">+ Board</button>
+    <button class="pax-reset" data-pax="reset" aria-label="Reset count">↺</button>
+  </div>
+  <div class="pax-context" id="paxContext"></div>
+
+  <button class="track-btn satnav-btn" id="satnavBtn">🛰️  Start Sat-Nav mode</button>
+  <button class="track-btn" id="trackBtn" style="display:none">▶  Start GPS tracking</button>
+  <button class="track-btn nav-btn" id="firstStopBtn">📍  Directions to first stop</button>
+  <div class="gps-note" id="guideNote"></div>
+  <button class="track-btn nav-btn" id="navBtn" style="display:none">🧭  Navigate this route in Google Maps ↗</button>
+  <button class="track-btn nav-btn" id="previewBtn">🎬  Preview this route</button>
+  <div class="gps-note" id="gpsNote"></div>
+</div>
+</div>
+
+<div id="scheduleView" class="view">
+  <div class="sched-body" id="schedBody"></div>
+</div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-head"><h2>Your routes</h2><button class="icon-btn" id="drawerClose">✕</button></div>
+  <div class="drawer-body">
+    <div class="acct-box">
+      <div class="acct-line" id="acctLine"></div>
+      <div class="acct-actions">
+        <button class="chip-btn use" id="acctAdmin" style="display:none">⚙ Admin screen</button>
+        <button class="chip-btn" id="acctSignOut">Sign out</button>
+      </div>
+    </div>
+    <div class="rt-tabs" id="rtTabs"></div>
+    <div id="routeList"></div>
+  </div>
+</div>
+</div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet-rotate.js"></script>
+<script src="js/driver-app.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

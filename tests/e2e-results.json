@@ -1,0 +1,268 @@
+{
+ "passed": 51,
+ "total": 51,
+ "checks": [
+  [
+   "placeholder firebase-config.js shows the 'connect Firebase' setup screen",
+   true,
+   ""
+  ],
+  [
+   "register: short password blocked, still on auth screen",
+   true,
+   ""
+  ],
+  [
+   "register company -> admin screen shown",
+   true,
+   "Alpha Coaches"
+  ],
+  [
+   "users/{uid} has role admin + companyId",
+   true,
+   "{'companyId': '9uP3rdQmoHQ7Jhr1bbcR', 'role': 'admin', 'name': 'Ann Admin', 'email': 'ann@alpha.test', 'createdAt': {'seconds': 1790937670, 'nanoseconds': 490000000}}"
+  ],
+  [
+   "company doc created with ownerUid",
+   true,
+   "{'name': 'Alpha Coaches', 'ownerUid': 'zTRrhHjL69pTNJ7PrrcvEmO1zour', 'createdAt': {'seconds': 1790937670, 'nanoseconds': 490000000}}"
+  ],
+  [
+   "GPX upload: 4 named route points -> stops",
+   true,
+   "['Clydach (Post Office)', 'Pontarddulais Road', 'Gorseinon Square', 'Penyrheol Comprehensive School']"
+  ],
+  [
+   "GPX upload: track points loaded",
+   true,
+   "Track: 76 points"
+  ],
+  [
+   "stop reorder (down)",
+   true,
+   "['Clydach Post Office', 'Gorseinon Square', 'Pontarddulais Road', 'Penyrheol Comprehensive School']"
+  ],
+  [
+   "stop delete",
+   true,
+   "['Gorseinon Square', 'Pontarddulais Road', 'Penyrheol Comprehensive School']"
+  ],
+  [
+   "add stop by clicking map (+ markers drawn)",
+   true,
+   "4"
+  ],
+  [
+   "editor: timetable row without time is rejected",
+   true,
+   "Every morning timetable row needs a time (HH:MM). Check \u201cNowhere\u201d."
+  ],
+  [
+   "route saved and listed",
+   true,
+   "GOR\nGorseinon Sample (AM)\nschoolAM4 stops \u00b7 76 pts\nEdit\nDelete"
+  ],
+  [
+   "stored doc: stops/timetable/operator/track fields",
+   true,
+   "{'name': 'Gorseinon Sample (AM)', 'category': 'school', 'session': 'AM', 'note': 'Test route created by the e2e test', 'capacity': '53 seats', 'addedAt': '2026-10-02T10:41:13.791Z', 'operator': {'name': 'Alpha Coaches Ltd', 'tel': '01792 000000', 'email': 'ops@alpha.test'}, 'contacts': [{'label': 'Depot', 'tel': '01792 111111'}], 'timetable': {'morning': [{'stop': 'Gorseinon Square', 'time': '07:40'}, {'stop': 'Pontarddulais Road', 'time': '07:52'}, {'stop': 'Penyrheol Comprehensive School', 'time': '08:05'}, {'stop': 'Gorseinon College', 'time': '08:20'}], 'afternoon': [{'stop': 'Gorseinon College', 'time': '15:35'}, {'stop': 'Clydach Post Office', 'time': '16:10'}], 'afternoonNote': 'Wait 5 minutes for late finishers'}, 'stops': [{'lat': 51.665, 'lng': -4.038, 'name': 'Gorseinon Square'}, {'lat': 51.67, 'lng': -3.95, 'name': 'Pontarddulais Road'}, {'lat': 51.658, 'lng': -4.06, 'name': 'Penyrheol Comprehensive School'}, {'lat': 51.68533, 'lng': -3.98872, 'name': 'Gorseinon College'}], 'trackEnc': '...', 'trackPoints': 76, 'trackOriginalPoints': 76, 'updatedBy': 'zTRrhHjL69pTNJ7PrrcvEmO1zour', 'updatedAt': {'seconds': 1790937673, 'nanoseconds': 827000000}}"
+  ],
+  [
+   "edit: form pre-filled from Firestore",
+   true,
+   ""
+  ],
+  [
+   "big GPX (30,000 pts) is simplified in the editor",
+   true,
+   "Track: 3,094 points \u00b7 Simplified from 30,000 to 3,094 points (tolerance 1 m) so it fits comfortably in the database."
+  ],
+  [
+   "big GPX stored: <=12,000 pts, doc far below 1 MiB",
+   true,
+   "pts=3094 bytes~10436 tol=1"
+  ],
+  [
+   "big GPX fidelity: max deviation of original points from stored track < 15 m",
+   true,
+   "max deviation 1.19 m (tolerance 1 m)"
+  ],
+  [
+   "import sample routes: +38 routes (40 total)",
+   true,
+   ""
+  ],
+  [
+   "import sample routes is idempotent (still 40)",
+   true,
+   ""
+  ],
+  [
+   "invite driver: credentials shown, driver listed",
+   true,
+   "Ann Admin (you)\nadminann@alpha.test\nSend password reset\nDave Driver\ndriverdave@alpha.test\nSend password reset\nRemove"
+  ],
+  [
+   "admin remains signed in after creating a driver (secondary app)",
+   true,
+   ""
+  ],
+  [
+   "invite driver: duplicate email with wrong password is refused",
+   true,
+   "That email already has a login. If this is someone you removed earlier, enter their existing password, or ask them to use \u201cForgot password?\u201d \u2013 or use a different email."
+  ],
+  [
+   "admin can open driver view and sees routes",
+   true,
+   "Gorseinon Sample (AM)"
+  ],
+  [
+   "driver view: no upload/delete controls (read-only)",
+   true,
+   ""
+  ],
+  [
+   "driver drawer shows admin shortcut for admins",
+   true,
+   ""
+  ],
+  [
+   "driver view -> back to admin",
+   true,
+   ""
+  ],
+  [
+   "driver login -> driver view directly (no admin UI)",
+   true,
+   ""
+  ],
+  [
+   "driver sees company routes in drawer",
+   true,
+   "BIG\nBig recorded route\n0 stops \u00b7 6045 pts \u00b7 Oct 2\nViewing\nGOR\nGorseinon Sample (AM)\n4 stops \u00b7 401 pts \u00b7 Oct 2\nView\n330\n330A (AM)\n5 stops \u00b7 324 pts \u00b7 Sep 19\nView\n379\n379 (AM)\n28 stops \u00b7 833 pts \u00b7 Sep 1"
+  ],
+  [
+   "driver map draws route + 4 stop markers",
+   true,
+   ""
+  ],
+  [
+   "driver Schedule tab shows timetable times, stops and note",
+   true,
+   "Test route created by the e2e test\nMORNING\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\n07:52\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\n08:05\nGorseinon College\nDone\nOnboard change:\n\u2212\n0\n+\n08:20\nAFTERNOON\nGorseinon College\nStarts in 3h"
+  ],
+  [
+   "Sat-Nav mode starts: top bar with clock/speed/limit visible, no GPS/Google Maps buttons",
+   true,
+   "{'mode': True, 'clock': '11:41', 'topVisible': 'flex', 'speedBox': True, 'limitBox': True, 'noGps': True, 'noGmaps': True, 'bearing': True}"
+  ],
+  [
+   "real-time: admin edit appears on driver's screen without reload",
+   true,
+   ""
+  ],
+  [
+   "driver cannot write routes (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver cannot delete routes (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver profile role is driver",
+   true,
+   "driver"
+  ],
+  [
+   "driver cannot promote self to admin",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B starts with no routes",
+   true,
+   ""
+  ],
+  [
+   "company B driver view shows none of company A's routes",
+   true,
+   "\u2630\nRound Tracker\nNo route loaded\n\u25d0\nN\n\u25b2\n+\n\u2212\n\u26f6\n\u25ce\n\ud83e\udded\nNo routes yet\n\nYour company has no routes yet. Add some from the Admin screen.\n\nOpen Admin screen\nSPEED\n\u2013 mph\nOFF ROUTE\n\u2013\nNEAREST STOP\n\u2013\nONBOARD\n0\n\u2212 Ali"
+  ],
+  [
+   "company B cannot list company A's routes (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B cannot read a specific A route (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B cannot read A's user profiles",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B cannot write into A's routes",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B cannot list A's team",
+   true,
+   "permission-denied"
+  ],
+  [
+   "A's route list unaffected by B (still 40, no 'Bravo')",
+   true,
+   ""
+  ],
+  [
+   "sign out -> sign in again works (company B admin)",
+   true,
+   ""
+  ],
+  [
+   "removed driver is locked out (no company linked)",
+   true,
+   " view-orphan"
+  ],
+  [
+   "re-adding the same driver (same password) restores access",
+   true,
+   ""
+  ],
+  [
+   "driver sign out returns to sign-in screen",
+   true,
+   ""
+  ],
+  [
+   "wrong password shows an error",
+   true,
+   "Wrong email or password."
+  ],
+  [
+   "no uncaught JS page errors",
+   true,
+   "[]"
+  ],
+  [
+   "no unexpected console errors",
+   true,
+   "[]"
+  ]
+ ],
+ "console_errors": [
+  "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
+  "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
+  "[adminA] Failed to load resource: the server responded with a status of 400 (Bad Request)",
+  "[driver] Failed to load resource: the server responded with a status of 400 (Bad Request)"
+ ],
+ "page_errors": []
+}

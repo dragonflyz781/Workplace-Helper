@@ -1,0 +1,86 @@
+rules_version = '2';
+
+// ============================================================================
+// Round Tracker (multi-company) - Firestore security rules
+//
+// Data layout
+//   users/{uid}                          { companyId, role: 'admin'|'driver', name, email, createdAt }
+//   companies/{companyId}                { name, ownerUid, createdAt }
+//   companies/{companyId}/routes/{id}    route documents (track, stops, timetable ...)
+//
+// Principles
+//   * Everything requires a signed-in user who has a users/{uid} profile.
+//   * A user can only ever touch data under their OWN companyId (taken from their
+//     profile document on the server - the browser cannot fake it).
+//   * Admins can write routes and manage the users of their own company.
+//   * Drivers can read routes, nothing else. (Passenger counts are kept on the
+//     device in this version, so there is nothing for drivers to write.)
+// ============================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function profilePath(uid) { return /databases/$(database)/documents/users/$(uid); }
+    function hasProfile() { return signedIn() && exists(profilePath(request.auth.uid)); }
+    function myProfile() { return get(profilePath(request.auth.uid)).data; }
+    function inCompany(cid) { return hasProfile() && myProfile().companyId == cid; }
+    function isAdmin(cid)   { return inCompany(cid) && myProfile().role == 'admin'; }
+
+    // ---------------------------------------------------------------- users
+    match /users/{uid} {
+      // You can read your own profile; admins can read the profiles of their company.
+      allow read: if signedIn() && (uid == request.auth.uid || isAdmin(resource.data.companyId));
+
+      // (a) Company registration: a brand-new user creates THEIR OWN admin profile, and only
+      //     for a company document that is created in the same batch with them as owner.
+      allow create: if signedIn() && uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['companyId','role','name','email','createdAt'])
+                    && request.resource.data.role == 'admin'
+                    && request.resource.data.companyId is string
+                    && !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId))
+                    && getAfter(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.ownerUid == uid;
+
+      // (b) An admin adds a DRIVER to their own company (never an admin, never another company).
+      allow create: if signedIn() && uid != request.auth.uid
+                    && request.resource.data.keys().hasOnly(['companyId','role','name','email','createdAt'])
+                    && request.resource.data.role == 'driver'
+                    && request.resource.data.companyId is string
+                    && isAdmin(request.resource.data.companyId);
+
+      // Admins may rename a user of their company; company and role can never change.
+      allow update: if isAdmin(resource.data.companyId)
+                    && request.resource.data.companyId == resource.data.companyId
+                    && request.resource.data.role == resource.data.role;
+
+      // Admins can remove other users (not themselves) of their own company.
+      allow delete: if isAdmin(resource.data.companyId) && uid != request.auth.uid;
+    }
+
+    // ------------------------------------------------------------ companies
+    match /companies/{companyId} {
+      allow read: if inCompany(companyId);
+
+      // Creating a company: you become its owner, and you must not already belong to one.
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasOnly(['name','ownerUid','createdAt'])
+                    && request.resource.data.ownerUid == request.auth.uid
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
+                    && !exists(profilePath(request.auth.uid));
+
+      // Admins may rename the company; owner can't be changed.
+      allow update: if isAdmin(companyId)
+                    && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+
+      // --------------------------------------------------------------- routes
+      match /routes/{routeId} {
+        allow read:  if inCompany(companyId);                // admins and drivers
+        allow write: if isAdmin(companyId);                  // create / update / delete: admins only
+      }
+    }
+
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

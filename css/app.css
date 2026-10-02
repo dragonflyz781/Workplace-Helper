@@ -1,0 +1,461 @@
+/* ===== Design tokens ===== */
+:root{
+  --bg:#f4f6f5; --surface:#ffffff; --surface-2:#eef1f0; --line:#d7dedb;
+  --text:#151b1a; --muted:#5c6b67;
+  --accent:#e0631a; --accent-ink:#ffffff;
+  --route:#0e8f7d; --stop:#c98a00; --stop-ink:#1a1200;
+  --danger:#b3391f;
+  --shadow: 0 10px 30px rgba(15,25,22,.14);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11161a; --surface:#171e22; --surface-2:#1e2731; --line:#2b363d;
+    --text:#eaf1ee; --muted:#93a3a0;
+    --accent:#ff7d3d; --accent-ink:#1a0e05;
+    --route:#3fd6bc; --stop:#ffcc55; --stop-ink:#1a1200;
+    --danger:#ff7561;
+    --shadow: 0 10px 34px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11161a; --surface:#171e22; --surface-2:#1e2731; --line:#2b363d;
+  --text:#eaf1ee; --muted:#93a3a0;
+  --accent:#ff7d3d; --accent-ink:#1a0e05;
+  --route:#3fd6bc; --stop:#ffcc55; --stop-ink:#1a1200;
+  --danger:#ff7561;
+  --shadow: 0 10px 34px rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:"IBM Plex Sans", -apple-system, sans-serif;
+  overflow:hidden;
+  display:flex; flex-direction:column;
+}
+.num, .stat-value, .route-badge, .stop-marker span{ font-family:"Big Shoulders Display", sans-serif; }
+
+/* ---------- Top bar ---------- */
+.topbar{
+  display:flex; align-items:center; gap:10px;
+  padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background:var(--surface); border-bottom:1px solid var(--line);
+  z-index:500; flex:0 0 auto;
+}
+.icon-btn{
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--line);
+  background:var(--surface-2); color:var(--text);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer; flex:0 0 auto;
+}
+.icon-btn:active{ transform:scale(.94); }
+.topbar-title{ flex:1 1 auto; min-width:0; }
+.topbar-title h1{
+  margin:0; font-size:19px; font-weight:600; line-height:1.15;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.topbar-title .sub{ font-size:11.5px; color:var(--muted); }
+.theme-toggle{ font-size:15px; }
+
+/* ---------- Tabs ---------- */
+.tabs{
+  display:flex; gap:6px; padding:8px 14px; background:var(--surface);
+  border-bottom:1px solid var(--line); flex:0 0 auto;
+}
+.tab-btn{
+  flex:1; border:none; background:transparent; color:var(--muted);
+  font-family:"IBM Plex Sans", sans-serif; font-weight:600; font-size:13.5px;
+  padding:8px 0; border-radius:9px; cursor:pointer;
+}
+.tab-btn.active{ background:var(--surface-2); color:var(--text); }
+
+.view{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+#views{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+
+/* Wide screens (desktop / GitHub Pages use): show Map and Schedule
+   side by side as two full-height panes instead of tab-switching. */
+@media (min-width:880px){
+  .tabs{ display:none; }
+  #views{ flex-direction:row; }
+  #mapView{ display:flex !important; flex:1 1 58%; min-width:0; border-right:1px solid var(--line); }
+  #scheduleView{ display:flex !important; flex:1 1 42%; min-width:340px; max-width:480px; }
+}
+
+/* ---------- Passenger counter ---------- */
+.pax-row{
+  display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  background:var(--surface-2); border:1px solid var(--line); border-radius:13px; padding:9px 10px;
+}
+.pax-info{ flex:0 0 auto; padding-right:4px; }
+.pax-label{ font-size:9.5px; letter-spacing:.03em; color:var(--muted); font-weight:600; }
+.pax-count{ font-family:"Big Shoulders Display", sans-serif; font-size:26px; font-weight:700; line-height:1; }
+.pax-btn{
+  flex:1; border:none; border-radius:10px; padding:11px 8px;
+  font-family:"IBM Plex Sans", sans-serif; font-weight:600; font-size:13.5px; cursor:pointer;
+}
+.pax-btn.on{ background:var(--route); color:#04231d; }
+.pax-btn.off{ background:var(--surface); color:var(--text); border:1px solid var(--line); }
+.pax-reset{
+  flex:0 0 auto; width:34px; height:34px; border-radius:9px; border:1px solid var(--line);
+  background:var(--surface); color:var(--muted); font-size:15px; cursor:pointer;
+}
+.pax-btn:active, .pax-reset:active{ transform:scale(.95); }
+
+.sched-pax{
+  display:flex; align-items:center; gap:6px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
+}
+.sched-pax .n{ font-family:"Big Shoulders Display", sans-serif; font-size:16px; font-weight:700; min-width:16px; text-align:center; }
+.sched-pax-btn{
+  width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--surface);
+  color:var(--text); font-size:14px; line-height:1; cursor:pointer; font-family:inherit;
+}
+.sched-pax-btn.on{ color:var(--route); }
+.sched-pax-btn.off{ color:var(--danger); }
+.sched-pax-label{ font-size:11px; color:var(--muted); margin-right:2px; }
+
+/* ---------- Map ----------
+   Fixed, plain, north-up. No rotation. */
+.map-wrap{ position:relative; flex:1 1 auto; min-height:0; overflow:hidden; }
+#map{ position:absolute; inset:0; background:var(--surface-2); }
+.leaflet-container{
+  background:var(--surface-2); font-family:"IBM Plex Sans", sans-serif;
+}
+#map:not(.tiles-ok) .leaflet-container{
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size:40px 40px;
+  background-position:center;
+}
+.notile-banner{
+  position:absolute; left:10px; right:10px; top:10px; z-index:450;
+  background:var(--surface); border:1px solid var(--line); color:var(--text);
+  font-size:12px; line-height:1.4; border-radius:11px; padding:9px 34px 9px 12px;
+  box-shadow:var(--shadow);
+}
+.notile-banner button{
+  position:absolute; right:6px; top:6px; width:24px; height:24px; border:none;
+  background:transparent; color:var(--muted); font-size:16px; cursor:pointer; border-radius:6px;
+}
+.maps-link{ color:var(--route); font-weight:600; text-decoration:none; }
+
+.stop-marker{
+  width:24px; height:24px; border-radius:50%;
+  background:var(--stop); color:var(--stop-ink);
+  border:2px solid var(--surface);
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; box-shadow:0 2px 6px rgba(0,0,0,.3);
+}
+.stop-marker.done{ opacity:.45; }
+.leaflet-marker-icon.live-marker-icon{ transition: transform 0.6s linear; }
+.live-dot-wrap{ width:26px; height:26px; }
+.live-dot{
+  width:16px; height:16px; border-radius:50%;
+  background:var(--accent); border:3px solid var(--surface);
+  box-shadow:0 0 0 0 rgba(224,99,26,.55);
+  animation:pulse 2.2s infinite;
+  position:absolute; top:5px; left:5px;
+}
+@keyframes pulse{
+  0%{ box-shadow:0 0 0 0 rgba(224,99,26,.5); }
+  70%{ box-shadow:0 0 0 16px rgba(224,99,26,0); }
+  100%{ box-shadow:0 0 0 0 rgba(224,99,26,0); }
+}
+.heading-wedge{
+  position:absolute; top:-9px; left:50%; transform-origin:50% 22px;
+  width:0; height:0; border-left:5px solid transparent; border-right:5px solid transparent;
+  border-bottom:9px solid var(--accent); margin-left:-5px;
+}
+
+.map-fab{
+  position:absolute; right:12px; bottom:14px; z-index:400;
+  width:44px; height:44px; border-radius:12px;
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
+  display:flex; align-items:center; justify-content:center; font-size:19px; cursor:pointer;
+}
+.map-fab:active{ transform:scale(.94); }
+#fsFab{ bottom:66px; }
+
+.zoom-cluster{
+  position:absolute; left:12px; bottom:56px; z-index:410;
+  display:flex; flex-direction:column; border-radius:12px; overflow:hidden;
+  border:1px solid var(--line); box-shadow:var(--shadow);
+}
+.zoom-btn{
+  position:static; width:38px; height:38px; border-radius:0;
+  border:none; border-bottom:1px solid var(--line); font-size:20px; font-weight:600;
+}
+.zoom-btn:last-child{ border-bottom:none; }
+
+.compass-badge{
+  position:absolute; left:12px; bottom:14px; z-index:410;
+  width:32px; height:32px; border-radius:50%;
+  background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-family:"Big Shoulders Display", sans-serif; font-weight:700; font-size:11px; color:var(--text);
+  line-height:1; pointer-events:none;
+}
+.compass-badge .tick{ font-size:9px; color:var(--accent); margin-top:-1px; }
+.hdg-debug{
+  position:absolute; left:50px; bottom:14px; z-index:410;
+  background:var(--surface); border:1px solid var(--line); border-radius:8px;
+  padding:4px 8px; font-family:"Big Shoulders Display", sans-serif; font-size:12px;
+  font-weight:700; color:var(--text); box-shadow:var(--shadow); white-space:nowrap;
+}
+
+.fs-exit{
+  position:absolute; top:10px; right:10px; z-index:470;
+  background:var(--surface); border:1px solid var(--line); border-radius:11px;
+  padding:9px 14px; font-family:"IBM Plex Sans", sans-serif; font-size:12.5px; font-weight:600;
+  color:var(--text); box-shadow:var(--shadow); cursor:pointer;
+}
+
+/* ---------- Full-screen map mode ---------- */
+body.fs-mode .topbar{ display:none; }
+body.fs-mode .tabs{ display:none; }
+body.fs-mode #scheduleView{ display:none !important; }
+body.fs-mode #mapView{ flex:1 1 100% !important; border-right:none; }
+body.fs-mode .panel{ display:none; }
+body.fs-mode .fs-exit{ display:block !important; }
+body.fs-mode .map-wrap{ padding-bottom:env(safe-area-inset-bottom, 0px); }
+body.fs-mode .fs-pax-wrap{ display:flex !important; }
+
+.fs-pax-wrap{
+  display:none; position:absolute; left:50%; bottom:calc(16px + env(safe-area-inset-bottom, 0px));
+  transform:translateX(-50%); z-index:470;
+  flex-direction:column; align-items:center; gap:6px;
+}
+.fs-pax-context{
+  font-size:11px; font-weight:600; color:var(--text); background:var(--surface);
+  border:1px solid var(--line); border-radius:999px; padding:4px 11px; box-shadow:var(--shadow);
+  white-space:nowrap;
+}
+.fs-pax{
+  display:flex; align-items:center; gap:0; background:var(--surface); border:1px solid var(--line);
+  border-radius:999px; box-shadow:var(--shadow); overflow:hidden;
+}
+.fs-pax-btn{
+  border:none; background:transparent; color:var(--text);
+  font-family:"IBM Plex Sans", sans-serif; font-weight:700; font-size:14px;
+  padding:13px 18px; cursor:pointer; white-space:nowrap;
+}
+.fs-pax-btn.on{ color:var(--route); }
+.fs-pax-btn.off{ color:var(--danger); }
+.fs-pax-btn:active{ background:var(--surface-2); }
+.fs-pax-count{
+  font-family:"Big Shoulders Display", sans-serif; font-weight:700; font-size:19px;
+  padding:0 12px; border-left:1px solid var(--line); border-right:1px solid var(--line);
+  min-width:16px; text-align:center;
+}
+.pax-context{ font-size:10.5px; color:var(--muted); text-align:center; margin-top:6px; }
+
+/* ---------- Turn-by-turn nav banner ---------- */
+.nav-banner{
+  position:absolute; left:10px; right:10px; top:10px; z-index:440;
+  display:flex; gap:10px;
+}
+.nav-card{
+  flex:1; min-width:0; background:var(--surface); border:1px solid var(--line);
+  border-radius:13px; padding:9px 12px; box-shadow:var(--shadow);
+  display:flex; align-items:center; gap:9px;
+}
+.nav-card .arrow{
+  font-size:20px; flex:0 0 auto; width:26px; text-align:center; color:var(--accent);
+}
+.nav-card .txt{ min-width:0; }
+.nav-card .lbl{ font-size:9.5px; letter-spacing:.03em; color:var(--muted); font-weight:600; }
+.nav-card .val{ font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.nav-card .dist{ font-family:"Big Shoulders Display", sans-serif; font-size:15px; font-weight:700; color:var(--accent); }
+
+/* ---------- Sat-Nav mode ---------- */
+.satnav-btn{ background:var(--accent); color:var(--accent-ink); }
+.satnav-btn.on{ background:var(--surface-2); color:var(--text); border:1px solid var(--line); }
+
+body.satnav-mode .nav-banner{ display:none !important; }
+body.satnav-mode .notile-banner{ top:calc(96px + env(safe-area-inset-top, 0px)); }
+
+.satnav-top{
+  position:absolute; left:0; right:0; top:0; z-index:440;
+  padding:calc(12px + env(safe-area-inset-top, 0px)) 14px 12px;
+  background:var(--accent); color:var(--accent-ink);
+  display:flex; align-items:center; gap:14px;
+  box-shadow:0 6px 18px rgba(0,0,0,.25);
+}
+.satnav-arrow{ font-size:38px; line-height:1; flex:0 0 auto; width:48px; text-align:center; }
+.satnav-info{ min-width:0; }
+.satnav-dist{ font-family:"Big Shoulders Display", sans-serif; font-size:30px; font-weight:700; line-height:1; }
+.satnav-instr{ font-size:14px; font-weight:600; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.satnav-right{ margin-left:auto; flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+.sn-clock{ font-family:"Big Shoulders Display", sans-serif; font-size:19px; font-weight:700; line-height:1; letter-spacing:.02em; }
+.sn-row{ display:flex; align-items:center; gap:8px; }
+.sn-speed{ text-align:center; line-height:1; min-width:40px; }
+.sn-speed b{ display:block; font-family:"Big Shoulders Display", sans-serif; font-size:30px; font-weight:800; }
+.sn-speed small{ font-size:9px; font-weight:700; letter-spacing:.05em; opacity:.85; }
+.sn-speed.over b{ color:#fff; background:#c0141c; border-radius:6px; padding:0 5px; }
+.sn-limit{ width:38px; height:38px; border-radius:50%; background:#fff; color:#111; border:4px solid #d4151d;
+  display:flex; align-items:center; justify-content:center; font-family:"Big Shoulders Display", sans-serif;
+  font-size:19px; font-weight:800; line-height:1; box-sizing:border-box; }
+.sn-limit.unknown{ border-color:rgba(0,0,0,.35); color:rgba(0,0,0,.45); }
+.satnav-then{
+  position:absolute; left:14px; top:calc(92px + env(safe-area-inset-top, 0px)); z-index:435;
+  display:none; align-items:center; gap:8px;
+  background:var(--surface); color:var(--muted); border:1px solid var(--line);
+  border-radius:999px; padding:6px 12px 6px 8px; font-size:11.5px; font-weight:600;
+  box-shadow:var(--shadow);
+}
+.satnav-then .then-arrow{ font-size:14px; color:var(--text); }
+
+.satnav-bottom{
+  display:none; position:absolute; left:10px; right:10px; bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index:440; background:var(--surface); border:1px solid var(--line); border-radius:15px;
+  box-shadow:var(--shadow); padding:10px 6px; align-items:stretch;
+}
+.sb-stat{ flex:1; text-align:center; padding:0 4px; border-right:1px solid var(--line); }
+.sb-stat:last-child{ border-right:none; }
+.sb-val{ font-family:"Big Shoulders Display", sans-serif; font-size:18px; font-weight:700; line-height:1.1; }
+.sb-lbl{ font-size:9px; letter-spacing:.03em; color:var(--muted); font-weight:600; margin-top:2px; }
+
+/* In sat-nav mode the fullscreen exit button doubles as "End Sat-Nav" and
+   sits below the big top instruction card instead of overlapping it. */
+body.satnav-mode .fs-exit{ top:calc(96px + env(safe-area-inset-top, 0px)); }
+body.satnav-mode .fs-pax-wrap{ bottom:calc(84px + env(safe-area-inset-bottom, 0px)); }
+
+.empty-state{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:12px; padding:30px; text-align:center; z-index:300;
+  background:var(--bg);
+}
+.empty-state .glyph{ font-size:38px; }
+.empty-state h2{ margin:0; font-size:20px; font-weight:600; }
+.empty-state p{ margin:0; color:var(--muted); font-size:14px; max-width:280px; line-height:1.5; }
+
+/* ---------- Bottom stat panel ---------- */
+.panel{
+  flex:0 0 auto; background:var(--surface); border-top:1px solid var(--line);
+  border-radius:18px 18px 0 0; margin-top:-14px; position:relative; z-index:450;
+  box-shadow:var(--shadow);
+  padding:14px 14px calc(12px + env(safe-area-inset-bottom));
+}
+.stats-row{ display:flex; gap:10px; margin-bottom:12px; }
+.stat{
+  flex:1; background:var(--surface-2); border-radius:12px; padding:9px 12px;
+  border:1px solid var(--line);
+}
+.stat-label{ font-size:10.5px; color:var(--muted); letter-spacing:.02em; }
+.stat-value{ font-size:26px; font-weight:600; line-height:1.1; margin-top:1px; }
+.stat-value small{ font-size:13px; font-weight:500; color:var(--muted); font-family:"IBM Plex Sans",sans-serif; }
+.stat-sub{ font-size:11px; color:var(--muted); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+.track-btn{
+  width:100%; border:none; border-radius:13px; padding:14px 16px;
+  font-family:"IBM Plex Sans", sans-serif; font-weight:600; font-size:15.5px;
+  background:var(--accent); color:var(--accent-ink); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.track-btn:active{ transform:scale(.985); }
+.track-btn.on{ background:var(--surface-2); color:var(--text); border:1px solid var(--line); }
+.track-btn.nav-btn{
+  background:var(--surface-2); color:var(--text); border:1px solid var(--line);
+  margin-top:9px; font-size:14px; padding:12px 16px;
+}
+.gps-note{ text-align:center; font-size:11.5px; color:var(--muted); margin-top:8px; min-height:14px; }
+
+/* ---------- Drawer ---------- */
+.scrim{
+  position:fixed; inset:0; background:rgba(10,14,13,.5); z-index:600;
+  opacity:0; pointer-events:none; transition:opacity .18s ease;
+}
+.scrim.open{ opacity:1; pointer-events:auto; }
+.drawer{
+  position:fixed; left:0; right:0; bottom:0; z-index:700;
+  background:var(--surface); border-radius:18px 18px 0 0;
+  max-height:82vh; display:flex; flex-direction:column;
+  transform:translateY(100%); transition:transform .22s cubic-bezier(.2,.8,.3,1);
+  box-shadow:0 -12px 40px rgba(0,0,0,.35);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.drawer.open{ transform:translateY(0); }
+.drawer-handle{ width:36px; height:4px; background:var(--line); border-radius:3px; margin:10px auto 4px; }
+.drawer-head{ display:flex; align-items:center; justify-content:space-between; padding:6px 16px 10px; }
+.drawer-head h2{ margin:0; font-size:16px; font-weight:600; }
+.drawer-body{ overflow-y:auto; padding:0 12px 14px; }
+
+.upload-btn{
+  display:flex; align-items:center; gap:10px; width:100%;
+  border:1.5px dashed var(--line); border-radius:13px; background:var(--surface-2);
+  color:var(--text); padding:13px 14px; font-family:inherit; font-size:14px; font-weight:500;
+  cursor:pointer; margin-bottom:10px;
+}
+.upload-btn .g{ font-size:19px; }
+.upload-btn input{ display:none; }
+
+.route-card{
+  display:flex; align-items:center; gap:11px; padding:11px 10px;
+  border-radius:13px; border:1px solid var(--line); margin-bottom:8px; background:var(--surface);
+}
+.route-card.active{ border-color:var(--route); background:color-mix(in srgb, var(--route) 10%, var(--surface)); }
+.route-badge{
+  width:42px; height:42px; border-radius:10px; background:var(--route); color:#04231d;
+  display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600;
+  flex:0 0 auto; text-align:center; line-height:1.05;
+}
+.route-meta{ flex:1; min-width:0; }
+.route-meta .name{ font-size:14.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.route-meta .sub{ font-size:11.5px; color:var(--muted); }
+.route-actions{ display:flex; gap:6px; flex:0 0 auto; }
+.chip-btn{
+  border:1px solid var(--line); background:var(--surface-2); color:var(--text);
+  border-radius:9px; padding:7px 10px; font-size:12.5px; font-family:inherit; font-weight:500; cursor:pointer;
+}
+.chip-btn.use{ background:var(--route); color:#04231d; border-color:var(--route); }
+.chip-btn.del{ color:var(--danger); }
+
+.drawer-empty{ text-align:center; color:var(--muted); font-size:13px; padding:20px 10px; }
+.drawer-status{ font-size:12px; color:var(--muted); text-align:center; padding:2px 0 8px; min-height:16px; }
+
+.rt-tabs{ display:flex; gap:6px; overflow-x:auto; padding:2px 0 12px; -webkit-overflow-scrolling:touch; }
+.rt-tabs::-webkit-scrollbar{ display:none; }
+.rt-tab{
+  flex:0 0 auto; border:1px solid var(--line); background:var(--surface-2); color:var(--muted);
+  font-family:"IBM Plex Sans", sans-serif; font-weight:600; font-size:12.5px;
+  padding:7px 12px; border-radius:999px; cursor:pointer; white-space:nowrap;
+}
+.rt-tab.active{ background:var(--route); color:#04231d; border-color:var(--route); }
+.rt-tab .count{ opacity:.75; margin-left:3px; }
+
+/* ---------- Schedule view ---------- */
+.sched-body{ flex:1; overflow-y:auto; padding:14px 14px calc(20px + env(safe-area-inset-bottom)); }
+.sched-banner{
+  border-radius:12px; padding:11px 13px; margin-bottom:14px; font-size:13px; font-weight:500;
+  background:var(--surface-2); border:1px solid var(--line); color:var(--muted);
+}
+.sched-section{ margin-bottom:16px; }
+.sched-section h3{ margin:0 0 8px; font-size:12px; letter-spacing:.03em; color:var(--muted); font-weight:600; }
+.sched-row{
+  display:flex; align-items:center; gap:12px; padding:12px 13px; border-radius:12px;
+  border:1px solid var(--line); background:var(--surface); margin-bottom:8px;
+  transition:background .3s, border-color .3s, opacity .3s;
+}
+.sched-row.past{ opacity:.4; }
+.sched-row.now{
+  background:color-mix(in srgb, var(--accent) 16%, var(--surface));
+  border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;
+}
+.sched-dot{
+  width:10px; height:10px; border-radius:50%; flex:0 0 auto; background:var(--line);
+}
+.sched-row.now .sched-dot{ background:var(--accent); box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+.sched-row.past .sched-dot{ background:var(--route); }
+.sched-info{ flex:1; min-width:0; }
+.sched-stop{ font-size:14.5px; font-weight:500; }
+.sched-row.now .sched-stop{ font-weight:700; }
+.sched-status{ font-size:11.5px; color:var(--muted); margin-top:1px; }
+.sched-row.now .sched-status{ color:var(--accent); font-weight:600; }
+.sched-time{ font-family:"Big Shoulders Display", sans-serif; font-size:22px; font-weight:600; flex:0 0 auto; }
+.sched-note{ font-size:12px; color:var(--muted); padding:2px 2px 0; }
+.sched-op{ font-size:13px; line-height:1.65; color:var(--text); }
+.sched-op .muted{ color:var(--muted); }
+.sched-route-text{ font-size:12.5px; line-height:1.65; color:var(--muted); }
+.sched-empty{ text-align:center; color:var(--muted); font-size:13px; padding:40px 20px; }
