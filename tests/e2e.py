@@ -33,10 +33,16 @@ def check(name, cond, detail=""):
     results.append((name, bool(cond), str(detail)))
     print(("PASS " if cond else "FAIL ") + name + ((" -- " + str(detail)) if (detail and not cond) else ""))
 
+DIALOG = {"cancel": False}   # set DIALOG["cancel"] = True to press Cancel on the next confirm() dialogs
+dialog_msgs = []             # text of every confirm()/alert() shown
+def on_dialog(d):
+    dialog_msgs.append(d.message)
+    d.dismiss() if DIALOG["cancel"] else d.accept()
+
 def watch(page, tag):
     page.on("pageerror", lambda e: page_errors.append(f"[{tag}] {e} :: {(getattr(e, 'stack', '') or '')[:600]}"))
     page.on("console", lambda m: console_errors.append(f"[{tag}] {m.text}") if m.type == "error" else None)
-    page.on("dialog", lambda d: d.accept())
+    page.on("dialog", on_dialog)
 
 def shot(page, name):
     page.screenshot(path=str(SHOTS / name))
@@ -607,6 +613,388 @@ with sync_playwright() as p:
     uid_b = B.evaluate("window.__mc.auth.currentUser.uid")
     r = B.evaluate(f"window.__mc.setDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','bx'),{{routeId:'x',routeName:'x',session:'AM',driverUid:'{uid_b}',driverName:'x',startedAt:new Date(),submittedAt:window.__mc.serverTimestamp(),totalBoarded:1,totalAlighted:0,unscheduledBoarded:0,unscheduledAlighted:0,stops:[]}}).then(()=>'WRITTEN').catch(e=>e.code)")
     check("company B cannot write a run into A (permission-denied)", r == "permission-denied", r)
+
+    # ====================================================================================================
+    # BUG FIX: Schedule-tab "Onboard change" taps and map Board/Alight taps feed ONE per-stop store and the submitted run
+    # ====================================================================================================
+    def pick_route(name, tab="#tabSchedBtn"):
+        if "satnav-mode" in D.evaluate("document.body.className"):
+            D.click("#fsExit"); D.wait_for_function("!document.body.classList.contains('satnav-mode')")
+        D.click("#menuBtn"); D.wait_for_timeout(300)
+        D.click(".rt-tab:has-text('Schools AM')"); D.wait_for_timeout(200)
+        D.click(f"#routeList .route-card:has-text('{name}') .chip-btn.use")
+        D.wait_for_function("n => document.getElementById('routeName').textContent === n", arg=name, timeout=15000)
+        D.click(tab); D.wait_for_timeout(400)
+    def sbtn(key, d): return f"#schedBody button[data-stopkey='{key}'][data-dir='{d}']"
+    def sn(key): return D.inner_text(f"#schedBody .n[data-stop-idx='{key}']").strip()
+    def sdet(key): return D.inner_text(f"#schedBody .n[data-stop-idx='{key}'] ~ .sched-pax-detail").strip()
+    def run_ids(page):
+        return set(page.evaluate(f"window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies','{cid_a}','runs')).then(s=>s.docs.map(d=>d.id))"))
+    def run_doc(page, i):
+        return page.evaluate(f"window.__mc.getDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','runs','{i}')).then(d=>d.data())")
+    def stops_tuple(run): return [(x["index"], x["boarded"], x["alighted"]) for x in run["stops"]]
+    def finish_modal():
+        D.click("#tabMapBtn") if D.is_visible("#tabMapBtn") else None
+        D.click("#finishRunBtn"); D.wait_for_selector("#runModal", state="visible"); return D.inner_text("#runModal")
+    def submit_modal():
+        D.click("#runSubmit"); D.wait_for_function("document.getElementById('runMsg').textContent.includes('Run submitted')", timeout=20000)
+        D.click("#runSubmit")      # "Done"
+    def admin_run_detail(run_id):
+        A.click("#admTabRuns"); A.wait_for_selector(f"#runList .run-card[data-run-id='{run_id}']", timeout=15000)
+        A.click(f"#runList .run-card[data-run-id='{run_id}'] .run-head")
+        A.wait_for_selector(f"#runList .run-card[data-run-id='{run_id}'] .run-detail")
+        return A.inner_text(f"#runList .run-card[data-run-id='{run_id}']")
+
+    known = run_ids(A)
+    pick_route("Run Test Route (AM)")
+    check("schedule/run bug fix: precondition - no counts stored for the route", not (pax_ls() or {}).get("stopsOn") and sn("MORNING-0") == "0")
+
+    # ---- (a) Schedule-tab taps ONLY -> submitted run contains them
+    for _ in range(2): D.click(sbtn("MORNING-0", 1))       # stop 1: 2 on
+    D.click(sbtn("MORNING-2", 1))                           # stop 3: 1 on
+    D.click(sbtn("MORNING-1", -1))                          # stop 2: 1 off
+    st = pax_ls()
+    check("Schedule taps are stored in the per-stop store keyed by stop index (stopsOn {0:2,2:1}, stopsOff {1:1}; started)",
+          st["stopsOn"] == {"0": 2, "2": 1} and st["stopsOff"] == {"1": 1} and st["adhocOn"] == 0 and st["adhocOff"] == 0 and st["startedAt"], st)
+    check("Schedule rows show the net per stop (+2 / -1 / +1 / 0) and on/off detail",
+          [sn(f"MORNING-{i}") for i in range(4)] == ["2", "-1", "1", "0"] and sdet("MORNING-0") == "on 2 · off 0" and sdet("MORNING-1") == "on 0 · off 1", [sn(f"MORNING-{i}") for i in range(4)])
+    shot(D, "38-driver-schedule-onboard-change-taps.png")
+    mt = finish_modal()
+    check("confirm dialog shows the Schedule-tab taps (stop1 2/0, stop2 0/1, stop3 1/0, total 3/1) and NO 'not part of' note",
+          re.search(r"1\. Clydach \(Post Office\)\s+2\s+0", mt) and re.search(r"2\. Pontarddulais Road\s+0\s+1", mt) and re.search(r"3\. Gorseinon Square\s+1\s+0", mt)
+          and re.search(r"4\. Penyrheol Comprehensive School\s+0\s+0", mt) and re.search(r"Unscheduled[^\n]*\s+0\s+0", mt) and re.search(r"Total\s+3\s+1", mt)
+          and "not part" not in mt and "Schedule-tab" not in mt, mt)
+    shot(D, "39-driver-finish-confirm-schedule-taps.png")
+    submit_modal()
+    new = run_ids(A) - known; known |= new
+    check("exactly one new run written", len(new) == 1, new)
+    RS = run_doc(A, next(iter(new)))
+    check("submitted run (Schedule taps only): per-stop boarded/alighted and totals include them",
+          stops_tuple(RS) == [(0, 2, 0), (1, 0, 1), (2, 1, 0), (3, 0, 0)] and (RS["totalBoarded"], RS["totalAlighted"], RS["unscheduledBoarded"], RS["unscheduledAlighted"]) == (3, 1, 0, 0), RS["stops"])
+    stl = pax_ls()
+    D.click("#tabSchedBtn"); D.wait_for_timeout(300)
+    check("after submit both sources are cleared: store empty, Schedule rows 0, map counter 0",
+          (stl or {}).get("stopsOn") == {} and (stl or {}).get("stopsOff") == {} and stl["adhocOn"] == 0 and [sn(f"MORNING-{i}") for i in range(4)] == ["0"] * 4 and sdet("MORNING-0") == "on 0 · off 0" and D.inner_text("#paxCountMap") == "0", stl)
+    det = admin_run_detail(next(iter(new)))
+    check("admin Runs tab shows the Schedule-tab passengers (per-stop table + totals 3 / 1)",
+          re.search(r"1\. Clydach \(Post Office\)\s+2\s+0", det) and re.search(r"2\. Pontarddulais Road\s+0\s+1", det) and re.search(r"3\. Gorseinon Square\s+1\s+0", det)
+          and re.search(r"Total\s+3\s+1", det), det)
+    shot(A, "40-admin-runs-schedule-taps.png")
+
+    # ---- (b) mix of both sources, no double counting
+    D.click("#tabMapBtn")
+    gps(off_n(S[0], 20, 0))
+    D.click("#satnavBtn"); D.wait_for_function("document.getElementById('paxContext').textContent.includes('At Stop 1')", timeout=15000)
+    D.click("#fsPaxOn"); D.click("#fsPaxOn"); D.click("#fsPaxOff")                  # map at stop 1: 2 on, 1 off
+    gps(off_n(S[0], 0, 120)); D.wait_for_function("document.getElementById('paxContext').textContent.includes('Between stops')", timeout=10000)
+    D.click("#fsPaxOn")                                                             # unscheduled: 1 on
+    D.click("#fsExit"); D.wait_for_function("!document.body.classList.contains('satnav-mode')")
+    D.click("#tabSchedBtn"); D.wait_for_timeout(300)
+    check("map taps show on the Schedule rows too (stop 1: net +1, 'on 2 · off 1') - one shared store", sn("MORNING-0") == "1" and sdet("MORNING-0") == "on 2 · off 1", (sn("MORNING-0"), sdet("MORNING-0")))
+    D.click(sbtn("MORNING-0", 1))                                                   # schedule: stop 1 +1 -> 3 on / 1 off
+    for _ in range(2): D.click(sbtn("MORNING-1", 1))                                # schedule: stop 2: 2 on
+    D.click(sbtn("MORNING-2", 1))                                                   # schedule: stop 3: 1 on
+    D.click(sbtn("MORNING-3", -1))                                                  # schedule: stop 4: 1 off
+    st = pax_ls()
+    check("mixed sources: one store, each tap counted once (stop1 3/1, stop2 2/0, stop3 1/0, stop4 0/1, unscheduled 1/0)",
+          st["stopsOn"] == {"0": 3, "1": 2, "2": 1} and st["stopsOff"] == {"0": 1, "3": 1} and st["adhocOn"] == 1 and st["adhocOff"] == 0, st)
+    D.click("#tabMapBtn")
+    check("map 'onboard' counter = boarded - alighted = 7 - 2 = 5 (no double count)", D.inner_text("#paxCountMap") == "5", D.inner_text("#paxCountMap"))
+    D.reload(); wait_view(D, "driver"); D.wait_for_function("document.getElementById('routeName').textContent === 'Run Test Route (AM)'", timeout=15000)
+    check("mixed counts survive a refresh unchanged", pax_ls() == st, pax_ls())
+    mt = finish_modal()
+    check("confirm dialog shows the COMBINED figures (3/1, 2/0, 1/0, 0/1, unscheduled 1/0, total 7/2)",
+          re.search(r"1\. Clydach \(Post Office\)\s+3\s+1", mt) and re.search(r"2\. Pontarddulais Road\s+2\s+0", mt) and re.search(r"3\. Gorseinon Square\s+1\s+0", mt)
+          and re.search(r"4\. Penyrheol Comprehensive School\s+0\s+1", mt) and re.search(r"Unscheduled[^\n]*\s+1\s+0", mt) and re.search(r"Total\s+7\s+2", mt) and "not part" not in mt, mt)
+    shot(D, "41-driver-finish-confirm-combined.png")
+    submit_modal()
+    new = run_ids(A) - known; known |= new
+    RM = run_doc(A, next(iter(new)))
+    check("submitted run (mixed): per-stop + unscheduled + totals are the combined figures, stops[].index = stop index",
+          len(new) == 1 and stops_tuple(RM) == [(0, 3, 1), (1, 2, 0), (2, 1, 0), (3, 0, 1)] and (RM["totalBoarded"], RM["totalAlighted"], RM["unscheduledBoarded"], RM["unscheduledAlighted"]) == (7, 2, 1, 0), RM["stops"])
+    stl = pax_ls()
+    D.click("#tabSchedBtn"); D.wait_for_timeout(300)
+    check("after the mixed submit both sources are cleared (store, Schedule rows, map counter)",
+          stl["stopsOn"] == {} and stl["stopsOff"] == {} and stl["adhocOn"] == 0 and [sn(f"MORNING-{i}") for i in range(4)] == ["0"] * 4 and D.inner_text("#paxCountMap") == "0", stl)
+    det = admin_run_detail(next(iter(new)))
+    check("admin Runs tab shows the mixed run (3/1, 2/0, 1/0, 0/1, unscheduled 1/0, total 7/2)",
+          re.search(r"1\. Clydach \(Post Office\)\s+3\s+1", det) and re.search(r"2\. Pontarddulais Road\s+2\s+0", det) and re.search(r"3\. Gorseinon Square\s+1\s+0", det)
+          and re.search(r"4\. Penyrheol Comprehensive School\s+0\s+1", det) and re.search(r"Unscheduled[^\n]*\s+1\s+0", det) and re.search(r"Total\s+7\s+2", det), det)
+    shot(A, "42-admin-runs-mixed-sources.png")
+
+    # ---- (c) counts saved by the OLD version (byStop keyed 'MORNING-n') are folded in once, not lost
+    D.evaluate(f"localStorage.setItem('rt_pax_{rid}', JSON.stringify({{byStop:{{'MORNING-0':2,'MORNING-1':-1,'MORNING-3':3}}, byGpsStop:{{}}, adhoc:0, stopsOn:{{'2':1}}, stopsOff:{{}}, adhocOn:0, adhocOff:0, startedAt:1700000000000}}))")
+    D.reload(); wait_view(D, "driver"); D.wait_for_function("document.getElementById('routeName').textContent === 'Run Test Route (AM)'", timeout=15000)
+    st = pax_ls()
+    check("legacy Schedule counts migrate into the per-stop store (stop1 +2 -> on, stop2 -1 -> off, stop4 +3; existing stop3 kept; legacy keys gone)",
+          st["stopsOn"] == {"0": 2, "2": 1, "3": 3} and st["stopsOff"] == {"1": 1} and "byStop" not in st and st["startedAt"] == 1700000000000, st)
+    D.evaluate(f"localStorage.removeItem('rt_pax_{rid}')"); D.reload(); wait_view(D, "driver")
+    D.wait_for_function("document.getElementById('routeName').textContent === 'Run Test Route (AM)'", timeout=15000)
+
+    # ---- (d) a timetable row that matches no stop is counted as unscheduled (and shows its own count)
+    um = A.evaluate(f"""async () => {{ const m = window.__mc, ref = m.doc(m.db,'companies','{cid_a}','routes','{rid}');
+        const d = (await m.getDoc(ref)).data(); d.name = 'Unmapped Row Route (AM)';
+        d.timetable = {{ morning: [{{stop:'Clydach (Post Office)', time:'07:40'}}, {{stop:'Mystery Depot', time:'08:00'}}] }};
+        const nref = m.doc(m.db,'companies','{cid_a}','routes','unmapped-test'); await m.setDoc(nref, d); return true; }}""")
+    pick_route("Unmapped Row Route (AM)")
+    D.click(sbtn("MORNING-1", 1)); D.click(sbtn("MORNING-1", 1)); D.click(sbtn("MORNING-0", 1))
+    stu = D.evaluate("JSON.parse(localStorage.getItem('rt_pax_unmapped-test'))")
+    check("row matching no stop: counted as unscheduled once (adhocOn 2), shown on its own row; matched row goes to stop 1",
+          stu["stopsOn"] == {"0": 1} and stu["adhocOn"] == 2 and sn("MORNING-1") == "2" and sn("MORNING-0") == "1", stu)
+    mt = finish_modal()
+    check("confirm dialog: unscheduled 2/0, stop 1 1/0, total 3/0 for that route", re.search(r"1\. Clydach \(Post Office\)\s+1\s+0", mt) and re.search(r"Unscheduled[^\n]*\s+2\s+0", mt) and re.search(r"Total\s+3\s+0", mt), mt)
+    D.click("#runCancel")
+    D.evaluate("localStorage.removeItem('rt_pax_unmapped-test')")
+    pick_route("Run Test Route (AM)")
+    A.evaluate(f"window.__mc.deleteDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','routes','unmapped-test'))")
+    A.click("#admTabRoutes"); A.wait_for_function("document.querySelectorAll('#adminRouteList .arow').length === 41", timeout=15000)
+    check("temporary test route removed again (41 routes)", True)
+    D.click("#tabMapBtn")
+
+    # ====================================================================================================
+    # NEW: Operator details (company default -> routes), apply-to-all, driver fallback, isolation, rules
+    # ====================================================================================================
+    OP1 = {"name": "Alpha Travel Group Ltd", "address": "12 Quay Parade, Swansea, SA1 3XY",
+           "tel": "01792 555 000 (office) / 07700 900 123", "email": "operations@alpha-travel.test"}
+    OP2 = dict(OP1, tel="01792 777 777", address="3 New Street, Cardiff, CF10 1AA")
+    def fs_get(page, path):
+        return page.evaluate("p => window.__mc.getDoc(window.__mc.doc(window.__mc.db, ...p.split('/'))).then(d=>d.exists()?d.data():null)", path)
+    def routes_of(page, cid):
+        return page.evaluate("""cid => window.__mc.getDocs(window.__mc.collection(window.__mc.db,'companies',cid,'routes')).then(
+            s => Object.fromEntries(s.docs.map(d => { const x = d.data(); return [d.id, {name: x.name, operator: x.operator || null, custom: x.operatorCustom === undefined ? null : x.operatorCustom}]; })))""", cid)
+    def op_of(page, path="companies/" + cid_a):
+        d = fs_get(page, path); return (d or {}).get("operator")
+    def set_op_form(vals):
+        for k, i in (("name", "opName"), ("address", "opAddress"), ("tel", "opTel"), ("email", "opEmail")):
+            A.fill("#" + i, vals.get(k, ""))
+    def op_form():
+        return {k: A.input_value("#" + i) for k, i in (("name", "opName"), ("address", "opAddress"), ("tel", "opTel"), ("email", "opEmail"))}
+    def editor_op():
+        return {k: A.input_value("#ed_op_" + k) for k in ("name", "address", "tel", "email")}
+    def d_schedule(route_name):
+        """driver (Dave) picks a route from the drawer and opens the Schedule tab; returns the schedule text"""
+        D.click("#menuBtn"); D.wait_for_timeout(300)
+        D.click(".rt-tab:has-text('Schools AM')"); D.wait_for_timeout(200)
+        D.click(f"#routeList .route-card:has-text('{route_name}') .chip-btn.use")
+        D.wait_for_function("n => document.getElementById('routeName').textContent === n", arg=route_name, timeout=15000)
+        D.click("#tabSchedBtn"); D.wait_for_timeout(500)
+        return D.inner_text("#schedBody")
+    def add_gpx_route(name, mutate=None):
+        A.click("#admTabRoutes"); A.click("#newRouteBtn"); wait_view(A, "editor")
+        A.fill("#ed_name", name); A.select_option("#ed_session", "AM")
+        A.set_input_files("#ed_gpx", str(GPX))
+        A.wait_for_function("document.querySelectorAll('#stopList .rowitem').length === 4")
+        if mutate: mutate()
+
+    # ---- 1. the new tab, validation, saving
+    A.click("#admTabOperator")
+    check("Operator details tab is next to Routes/Drivers/Runs and shows the section",
+          A.is_visible("#admOperator") and not A.is_visible("#admRoutes") and [t.strip() for t in A.eval_on_selector_all(".admin-tabs .tab-btn", "e=>e.map(x=>x.textContent)")] == ["Routes", "Operator details", "Drivers", "Runs"])
+    check("fresh company: form empty, 'Apply to all routes' disabled until details are saved",
+          op_form() == {"name": "", "address": "", "tel": "", "email": ""} and A.is_disabled("#opApplyBtn") and "Save the operator details" in A.inner_text("#opApplyInfo"))
+    check("company doc has no operator yet", op_of(A) is None)
+    s360 = fs_get(A, f"companies/{cid_a}/routes/seed-360-am"); s995 = fs_get(A, f"companies/{cid_a}/routes/route-995-am")
+    check("samples imported BEFORE a company operator exists keep their own operator, marked custom (4 of the 38 samples have none)",
+          s360["operator"]["name"].startswith("South Wales Transport") and s360.get("operatorCustom") is True and "operator" not in s995 and s995.get("operatorCustom") is False, (s360.get("operator"), s995.get("operator")))
+    shot(A, "26-admin-operator-tab-empty.png")
+    A.click("#opSave"); A.wait_for_timeout(300)
+    check("save with empty name is refused (message shown, nothing stored)", "operator's name" in A.inner_text("#opMsg") and op_of(A) is None, A.inner_text("#opMsg"))
+    A.fill("#opName", "   "); A.fill("#opTel", "01792 555 000"); A.click("#opSave"); A.wait_for_timeout(300)
+    check("whitespace-only name is refused too", "operator's name" in A.inner_text("#opMsg") and op_of(A) is None)
+    A.fill("#opName", OP1["name"]); A.fill("#opEmail", "not-an-email"); A.click("#opSave"); A.wait_for_timeout(300)
+    check("invalid email format is refused (name filled)", "email" in A.inner_text("#opMsg").lower() and op_of(A) is None, A.inner_text("#opMsg"))
+    shot(A, "27-admin-operator-validation-error.png")
+    set_op_form(OP1); A.click("#opSave")
+    A.wait_for_function("document.getElementById('opMsg').textContent.includes('saved')", timeout=10000)
+    check("valid details saved to companies/{cid}.operator (free-text phone kept verbatim)", op_of(A) == OP1, op_of(A))
+    ai = A.inner_text("#opApplyInfo")
+    check("after saving: apply panel is offered with the exact counts (41 routes: 6 without operator to fill, 35 custom kept)",
+          "41 routes in total" in ai and "6 would be updated" in ai and "35 custom kept" in ai and not A.is_disabled("#opApplyBtn") and "Apply to all routes (6)" in A.inner_text("#opApplyBtn"), ai)
+    A.click("#opModeAll")
+    check("'Overwrite all' mode: info says all 41 would be updated, custom no longer 'kept'", "41 would be updated" in A.inner_text("#opApplyInfo") and "custom kept" not in A.inner_text("#opApplyInfo"), A.inner_text("#opApplyInfo"))
+    A.click("#opModeFill")
+    shot(A, "28-admin-operator-saved-apply-offer.png")
+    A.fill("#opEmail", ""); A.click("#opSave"); A.wait_for_function("document.getElementById('opMsg').textContent.includes('saved')")
+    check("email is optional (empty email saves)", "email" not in (op_of(A) or {}), op_of(A))
+    A.fill("#opEmail", OP1["email"]); A.click("#opSave"); A.wait_for_function("document.getElementById('opMsg').textContent.includes('saved')")
+    A.reload(); wait_view(A, "admin"); A.click("#admTabOperator")
+    check("operator details survive a page reload (form re-filled from Firestore)", op_form() == OP1, op_form())
+
+    # ---- 2. route editor: new routes pre-filled, indicator, reset, per-route custom, GPX import
+    A.click("#admTabRoutes"); A.click("#newRouteBtn"); wait_view(A, "editor")
+    check("new route: operator pre-filled from the company operator", editor_op() == OP1, editor_op())
+    check("new route: indicator says 'Using company operator details'; reset button hidden",
+          A.inner_text("#ed_op_status").strip() == "Using company operator details" and A.get_attribute("#ed_op_status", "data-state") == "company" and not A.is_visible("#ed_op_reset"))
+    shot(A, "29-editor-operator-using-company.png")
+    A.fill("#ed_op_tel", "01792 999 999")
+    check("editing a field flips the indicator to 'Custom for this route' and shows the reset button",
+          A.inner_text("#ed_op_status").strip() == "Custom for this route" and A.get_attribute("#ed_op_status", "data-state") == "custom" and A.is_visible("#ed_op_reset"))
+    shot(A, "30-editor-operator-custom.png")
+    A.click("#ed_op_reset")
+    check("reset-to-company-default restores the company details and the 'Using company' indicator",
+          editor_op() == OP1 and A.inner_text("#ed_op_status").strip() == "Using company operator details" and not A.is_visible("#ed_op_reset"), editor_op())
+    A.fill("#ed_op_tel", "01792 999 999"); A.fill("#ed_op_tel", OP1["tel"])
+    check("typing the company value back also returns to 'Using company'", A.inner_text("#ed_op_status").strip() == "Using company operator details")
+    A.click("#edBack"); wait_view(A, "admin")
+
+    # custom route (GPX import into the editor, operator edited by hand)
+    def make_custom():
+        check("GPX import keeps the pre-filled company operator", editor_op() == OP1, editor_op())
+        A.fill("#ed_op_name", "Custom Cabs Ltd"); A.fill("#ed_op_tel", "07000 000 000")
+    add_gpx_route("Op Custom Route (AM)", make_custom)
+    A.click("#edSave"); wait_view(A, "admin")
+    A.wait_for_function("[...document.querySelectorAll('#adminRouteList .arow')].some(e=>e.innerText.includes('Op Custom Route'))")
+    rc = A.evaluate("[...document.querySelectorAll('#adminRouteList .arow')].find(e=>e.innerText.includes('Op Custom Route')).dataset.routeId")
+    dc = fs_get(A, f"companies/{cid_a}/routes/{rc}")
+    check("custom route stored with its own operator + operatorCustom=true", dc["operator"]["name"] == "Custom Cabs Ltd" and dc["operator"]["tel"] == "07000 000 000" and dc["operatorCustom"] is True, dc.get("operator"))
+
+    # normal new route: bad email refused in the editor, then reset, saved with the company operator
+    def bad_then_reset():
+        check("GPX import keeps the pre-filled company operator (second route)", editor_op() == OP1)
+        A.fill("#ed_op_email", "bad@"); A.click("#edSave"); A.wait_for_timeout(400)
+        check("route editor: invalid operator email blocks the save", "view-editor" in A.evaluate("document.body.className") and "email" in A.inner_text("#toast").lower(), A.inner_text("#toast"))
+        A.click("#ed_op_reset")
+    add_gpx_route("Op New Route (AM)", bad_then_reset)
+    A.click("#edSave"); wait_view(A, "admin")
+    A.wait_for_function("[...document.querySelectorAll('#adminRouteList .arow')].some(e=>e.innerText.includes('Op New Route'))")
+    rn = A.evaluate("[...document.querySelectorAll('#adminRouteList .arow')].find(e=>e.innerText.includes('Op New Route')).dataset.routeId")
+    dn = fs_get(A, f"companies/{cid_a}/routes/{rn}")
+    check("new route stored with the company operator, operatorCustom=false", dn["operator"] == OP1 and dn["operatorCustom"] is False, dn.get("operator"))
+    pills = A.evaluate("Object.fromEntries([...document.querySelectorAll('#adminRouteList .arow')].map(e=>[e.dataset.routeId, e.querySelector('.op-pill').dataset.op]))")
+    check("route list shows Operator: company / custom per route", pills[rn] == "company" and pills[rc] == "custom" and pills["seed-360-am"] == "custom" and pills["route-995-am"] == "company" and pills[rid2] == "company", {k: pills[k] for k in (rn, rc, "seed-360-am", "route-995-am", rid2)})
+    shot(A, "31-admin-route-list-operator-pills.png")
+    A.click(f"#adminRouteList .arow[data-route-id='{rc}'] [data-act=edit]"); wait_view(A, "editor")
+    check("re-opening the custom route: 'Custom for this route', own details kept", A.inner_text("#ed_op_status").strip() == "Custom for this route" and A.input_value("#ed_op_name") == "Custom Cabs Ltd")
+    A.click("#edBack"); wait_view(A, "admin")
+    A.click(f"#adminRouteList .arow[data-route-id='{rid2}'] [data-act=edit]"); wait_view(A, "editor")
+    check("route that has NO operator opens showing the company details ('Using company')", editor_op() == OP1 and A.inner_text("#ed_op_status").strip() == "Using company operator details", editor_op())
+    A.click("#edBack"); wait_view(A, "admin")
+    check("route list now has 43 routes", A.evaluate("document.querySelectorAll('#adminRouteList .arow').length") == 43)
+
+    # ---- 3. driver: route without operator falls back to the company operator (live, no reload)
+    check("precondition: 'Run Test Route (AM)' has NO operator stored in Firestore", fs_get(A, f"companies/{cid_a}/routes/{rid2}").get("operator") is None)
+    sched = d_schedule("Run Test Route (AM)")
+    check("driver Schedule: a route with no operator shows the COMPANY operator (name, address, tel, email)",
+          "OPERATOR" in sched and all(OP1[k] in sched for k in ("name", "address", "tel", "email")), sched[-400:])
+    shot(D, "32-driver-schedule-company-operator-fallback.png")
+    sched = d_schedule("360 (AM)")
+    check("driver Schedule: a custom route still shows its own operator, not the company's", "South Wales Transport" in sched and OP1["name"] not in sched, sched[-300:])
+    sched = d_schedule("995 (AM)")
+    check("driver Schedule: a sample route that has no operator shows the company operator", OP1["name"] in sched and OP1["email"] in sched, sched[-300:])
+
+    # ---- 4. apply to existing routes: cancel, fill-only, reset one sample route, overwrite all
+    A.click("#admTabOperator")
+    before = routes_of(A, cid_a)
+    DIALOG["cancel"] = True; n0 = len(dialog_msgs)
+    A.click("#opApplyBtn"); A.wait_for_timeout(800)
+    DIALOG["cancel"] = False
+    check("'Apply to all routes' asks for confirmation; Cancel changes nothing", len(dialog_msgs) == n0 + 1 and "6 route(s)" in dialog_msgs[-1] and routes_of(A, cid_a) == before, dialog_msgs[-1:])
+    A.click("#opApplyBtn")
+    A.wait_for_function("document.getElementById('opApplyMsg').textContent.includes('Updated 6 routes')", timeout=15000)
+    after = routes_of(A, cid_a)
+    changed = [i for i in after if after[i] != before[i]]
+    empties = {rid2, big_id, "route-995-am", "route-995-pm", "route-902-am", "route-902-pm"}
+    check("fill-only: exactly the 6 routes without operator (Run Test, Big recorded, 4 samples) were filled (operatorCustom=false); the 35 custom routes (incl. 34 samples) and the new ones untouched",
+          set(changed) == empties and all(after[i]["operator"] == OP1 and after[i]["custom"] is False for i in empties)
+          and after["seed-360-am"]["operator"]["name"].startswith("South Wales") and after[rc]["operator"]["name"] == "Custom Cabs Ltd", sorted(changed))
+    check("after fill-only the panel says nothing left to update in 'fill' mode (36 custom kept)", "0 would be updated" in A.inner_text("#opApplyInfo") and "36 custom kept" in A.inner_text("#opApplyInfo") and A.is_disabled("#opApplyBtn"), A.inner_text("#opApplyInfo"))
+    shot(A, "33-admin-operator-applied-fill-only.png")
+
+    # one sample route: reset-to-company in the editor (custom -> company)
+    A.click("#admTabRoutes"); A.click("#adminRouteList .arow[data-route-id='seed-360-am'] [data-act=edit]"); wait_view(A, "editor")
+    check("sample route editor: indicator 'Custom for this route' (it has its own operator)", A.inner_text("#ed_op_status").strip() == "Custom for this route" and A.input_value("#ed_op_name") != OP1["name"])
+    A.click("#ed_op_reset"); A.click("#edSave"); wait_view(A, "admin")
+    A.wait_for_timeout(600)
+    d360 = fs_get(A, f"companies/{cid_a}/routes/seed-360-am")
+    check("reset-to-company + save: route now stores the company operator, operatorCustom=false", d360["operator"] == OP1 and d360["operatorCustom"] is False, d360.get("operator"))
+
+    A.click("#admTabOperator"); A.click("#opModeAll")
+    expect_n = sum(1 for v in routes_of(A, cid_a).values() if not (v["operator"] == OP1 and v["custom"] is not True))
+    check("overwrite-all preview counts every route not yet on the company details (35 of 43)", expect_n == 35 and "35 would be updated" in A.inner_text("#opApplyInfo"), (expect_n, A.inner_text("#opApplyInfo")))
+    A.click("#opApplyBtn")
+    A.wait_for_function("document.getElementById('opApplyMsg').textContent.includes('Updated 35 routes')", timeout=30000)
+    check("overwrite-all confirm text warns it OVERWRITES custom routes", "OVERWRITE" in dialog_msgs[-1] and "custom" in dialog_msgs[-1], dialog_msgs[-1])
+    allr = routes_of(A, cid_a)
+    samples_ok = [i for i in allr if i.startswith(("seed-", "route-"))]
+    check("overwrite-all: ALL 43 routes (incl. the 38 sample routes and the custom one) now have the company operator, operatorCustom=false",
+          len(allr) == 43 and all(v["operator"] == OP1 and v["custom"] is False for v in allr.values()) and len(samples_ok) == 38, (len(allr), len(samples_ok)))
+    check("after applying, the panel reports every route already uses the company details", "43 already use" in A.inner_text("#opApplyInfo") and A.is_disabled("#opApplyBtn"), A.inner_text("#opApplyInfo"))
+    shot(A, "34-admin-operator-applied-overwrite-all.png")
+    sched = d_schedule("360 (AM)")
+    check("driver Schedule: a former custom sample route now shows the company operator", OP1["name"] in sched and OP1["tel"] in sched and "South Wales Transport" not in sched, sched[-300:])
+    shot(D, "35-driver-schedule-after-apply.png")
+
+    # ---- 5. change company details: drivers see them live; apply refreshes; re-importing samples picks them up
+    A.click("#admTabOperator"); set_op_form(OP2); A.click("#opSave")
+    A.wait_for_function("document.getElementById('opMsg').textContent.includes('saved')", timeout=10000)
+    check("company operator updated in Firestore", op_of(A) == OP2, op_of(A))
+    ai = A.inner_text("#opApplyInfo")
+    check("panel offers to refresh the 43 routes that still hold the old copy", "43 would be updated" in ai and "Saved." in ai, ai)
+    D.wait_for_function("t => document.getElementById('schedBody').innerText.includes(t)", arg=OP2["tel"], timeout=15000)
+    check("driver (no reload) immediately sees the NEW company details on a route that follows the company, even before 'Apply'",
+          OP2["tel"] in D.inner_text("#schedBody") and OP2["address"] in D.inner_text("#schedBody") and OP1["tel"] not in D.inner_text("#schedBody"), D.inner_text("#schedBody")[-250:])
+    check("(routes in Firestore still hold the old copy until applied)", all(v["operator"] == OP1 for v in routes_of(A, cid_a).values()))
+    A.click("#opApplyBtn")
+    A.wait_for_function("document.getElementById('opApplyMsg').textContent.includes('Updated 43 routes')", timeout=30000)
+    check("fill-only apply refreshed all 43 routes that followed the company", all(v["operator"] == OP2 and v["custom"] is False for v in routes_of(A, cid_a).values()))
+    # sample import with a company operator set
+    A.click("#admTabRoutes"); A.click("#importSampleBtn")
+    A.wait_for_function("document.getElementById('toast').textContent.includes('company operator details')", timeout=60000)
+    A.wait_for_timeout(500)
+    r360 = fs_get(A, "companies/%s/routes/seed-360-pm" % cid_a)
+    allr = routes_of(A, cid_a)
+    check("sample import with a company operator: imported routes get it (not the sample's own), operatorCustom=false, still 43 routes",
+          r360["operator"] == OP2 and r360["operatorCustom"] is False and len(allr) == 43 and all(v["operator"] == OP2 for v in allr.values()), (r360.get("operator"), len(allr)))
+    A.wait_for_timeout(500)
+
+    # ---- 6. other company unaffected
+    cid_b = B.evaluate("window.__mc.getDoc(window.__mc.doc(window.__mc.db,'users',window.__mc.auth.currentUser.uid)).then(d=>d.data().companyId)")
+    rb = routes_of(B, cid_b)
+    check("company B: no operator on its company doc or on its route", op_of(B, "companies/" + cid_b) is None and all(v["operator"] is None for v in rb.values()) and len(rb) == 1, rb)
+    B.click("#admTabOperator")
+    check("company B's Operator tab is empty and apply is disabled", all(B.input_value("#" + i) == "" for i in ("opName", "opAddress", "opTel", "opEmail")) and B.is_disabled("#opApplyBtn"))
+    shot(B, "36-company-b-operator-tab-empty.png")
+    B.click("#admTabRoutes"); B.click("#newRouteBtn"); wait_view(B, "editor")
+    check("company B: a new route is NOT pre-filled with A's operator", all(B.input_value("#ed_op_" + k) == "" for k in ("name", "address", "tel", "email")))
+    B.click("#edBack"); wait_view(B, "admin")
+    B.click("#adminToDriver"); wait_view(B, "driver"); B.wait_for_timeout(800)
+    if B.is_visible("#tabSchedBtn"): B.click("#tabSchedBtn")
+    B.wait_for_timeout(400)
+    bs = B.inner_text("#schedBody")
+    check("company B's driver Schedule (route 'Bravo Route 1') shows no operator section / none of A's details", B.inner_text("#routeName") == "Bravo Route 1" and "OPERATOR" not in bs and OP2["name"] not in bs, (B.inner_text("#routeName"), bs[-200:]))
+    B.evaluate("document.getElementById('menuBtn').click()"); B.click("#acctAdmin"); wait_view(B, "admin")
+    for what, call in (("company operator", f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}'),{{operator:{{name:'Evil'}}}})"),
+                       ("A's route operator", f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','routes','{rid2}'),{{operator:{{name:'Evil'}}}})")):
+        r = B.evaluate(f"{call}.then(()=>'WRITTEN').catch(e=>e.code)")
+        check(f"company B admin cannot change A's {what} (permission-denied)", r == "permission-denied", r)
+    check("A's operator unchanged after B's attempts", op_of(A) == OP2 and fs_get(A, f"companies/{cid_a}/routes/{rid2}")["operator"] == OP2)
+
+    # ---- 7. drivers cannot edit; rules reject bad operator data even from the browser
+    check("driver UI: no Operator tab / admin screen anywhere", not D.is_visible("#admTabOperator") and not D.is_visible("#admOperator") and not D.is_visible("#adminScreen"))
+    for what, call in (("company operator", f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}'),{{operator:{{name:'Driver Co'}}}})"),
+                       ("company name", f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}'),{{name:'Driver Co'}})"),
+                       ("a route's operator", f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}','routes','{rid2}'),{{operator:{{name:'Driver Co'}},operatorCustom:true}})")):
+        r = D.evaluate(f"{call}.then(()=>'WRITTEN').catch(e=>e.code)")
+        check(f"driver cannot edit {what} (permission-denied)", r == "permission-denied", r)
+    comp_now = fs_get(A, "companies/" + cid_a)
+    check("nothing changed after the driver's attempts", comp_now["operator"] == OP2 and comp_now["name"] == "Alpha Coaches" and comp_now["ownerUid"] == uid_a)
+    for what, val in (("empty name", "{name:''}"), ("bad email", "{name:'N',email:'x@y'}"), ("name > 120 chars", "{name:'x'.repeat(121)}"),
+                      ("tel > 40 chars", "{name:'N',tel:'1'.repeat(41)}"), ("address > 250 chars", "{name:'N',address:'a'.repeat(251)}"), ("unknown key", "{name:'N',evil:1}")):
+        r = A.evaluate(f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}'),{{operator:{val}}}).then(()=>'WRITTEN').catch(e=>e.code)")
+        check(f"rules: even the admin cannot store an operator with {what} (permission-denied)", r == "permission-denied", r)
+    r = A.evaluate(f"window.__mc.updateDoc(window.__mc.doc(window.__mc.db,'companies','{cid_a}'),{{ownerUid:'someone-else'}}).then(()=>'WRITTEN').catch(e=>e.code)")
+    check("rules: ownerUid still protected (permission-denied)", r == "permission-denied", r)
+    check("company doc unchanged after the rejected writes", fs_get(A, "companies/" + cid_a)["operator"] == OP2)
+    A.click("#admTabOperator"); A.wait_for_timeout(300)
+    shot(A, "37-admin-operator-final.png")
+    # phone-width layout of the new tab (tabs scroll sideways, nothing overflows the page)
+    A.set_viewport_size({"width": 390, "height": 844}); A.wait_for_timeout(400)
+    ov = A.evaluate("({sw: document.documentElement.scrollWidth, iw: window.innerWidth, form: document.getElementById('opForm').getBoundingClientRect().right})")
+    check("Operator details tab fits a 390 px phone screen (no horizontal page overflow)", ov["sw"] <= ov["iw"] and ov["form"] <= ov["iw"], ov)
+    shot(A, "43-admin-operator-phone-width.png")
+    A.click("#admTabOperator"); A.fill("#opName", ""); A.click("#opSave"); A.wait_for_timeout(300)
+    check("phone width: validation message visible", A.is_visible("#opMsg") and "name" in A.inner_text("#opMsg"))
+    A.set_viewport_size({"width": 1280, "height": 860}); A.reload(); wait_view(A, "admin")
 
     # ------------------------------------------------------------------ Remove driver -> access revoked; re-add reuses login
     A.click("#admTabDrivers")

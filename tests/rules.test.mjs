@@ -285,3 +285,106 @@ test("runs: only admins of the company may delete runs", async () => {
   await assertFails(deleteDoc(doc(as("driverB"), "companies/A/runs/d1")));
   await assertSucceeds(deleteDoc(doc(as("adminA"), "companies/A/runs/d1")));
 });
+
+/* ---------------------------------------------------------------- company operator details */
+const goodOp = { name: "Alpha Coaches Ltd", address: "1 High St, Swansea, SA1 1AA", tel: "01792 123456 / 07700 900123", email: "office@alpha.test" };
+const opUpd = (uid, cid, op) => updateDoc(doc(as(uid), "companies/" + cid), { operator: op });
+
+test("operator: admin can set the company operator (all four fields, or name only)", async () => {
+  await assertSucceeds(opUpd("adminA", "A", goodOp));
+  await assertSucceeds(opUpd("adminA", "A", { name: "Only A Name" }));
+  await assertSucceeds(opUpd("adminA", "A", { name: "N", address: "", tel: "", email: "" }));      // empty optional fields are fine
+  await assertSucceeds(opUpd("adminA", "A", { name: "N", tel: "ext. 5 (after 9am) +44 1792 1" }));    // phone is free text
+  const snap = await assertSucceeds(getDoc(doc(as("adminA"), "companies/A")));
+  assert.equal(snap.data().operator.tel, "ext. 5 (after 9am) +44 1792 1");
+  assert.equal(snap.data().ownerUid, "adminA");
+});
+
+test("operator: a driver cannot set or change it, but can read it", async () => {
+  await assertFails(opUpd("driverA", "A", goodOp));
+  await env.withSecurityRulesDisabled(async (c) => { await updateDoc(doc(c.firestore(), "companies/A"), { operator: goodOp }); });
+  await assertFails(opUpd("driverA", "A", { name: "Hacked" }));
+  await assertFails(updateDoc(doc(as("driverA"), "companies/A"), { "operator.name": "Hacked" }));
+  const snap = await assertSucceeds(getDoc(doc(as("driverA"), "companies/A")));
+  assert.equal(snap.data().operator.name, "Alpha Coaches Ltd");
+});
+
+test("operator: other companies' admins/drivers, strangers and anonymous users cannot set it", async () => {
+  await assertFails(opUpd("adminB", "A", goodOp));
+  await assertFails(opUpd("driverB", "A", goodOp));
+  await assertFails(opUpd("stranger", "A", goodOp));
+  await assertFails(updateDoc(doc(anon(), "companies/A"), { operator: goodOp }));
+  await assertFails(opUpd("adminA", "B", goodOp));
+});
+
+test("operator: name is required, non-blank and <= 120 chars", async () => {
+  await assertFails(opUpd("adminA", "A", { address: "x" }));                       // no name
+  await assertFails(opUpd("adminA", "A", { name: "" }));
+  await assertFails(opUpd("adminA", "A", { name: "   " }));                        // blank
+  await assertFails(opUpd("adminA", "A", { name: 42 }));                           // wrong type
+  await assertSucceeds(opUpd("adminA", "A", { name: "x".repeat(120) }));
+  await assertFails(opUpd("adminA", "A", { name: "x".repeat(121) }));
+});
+
+test("operator: size limits on address (250), tel (40), email (120) and types", async () => {
+  await assertSucceeds(opUpd("adminA", "A", { name: "N", address: "a".repeat(250), tel: "1".repeat(40) }));
+  await assertFails(opUpd("adminA", "A", { name: "N", address: "a".repeat(251) }));
+  await assertFails(opUpd("adminA", "A", { name: "N", tel: "1".repeat(41) }));
+  await assertSucceeds(opUpd("adminA", "A", { name: "N", email: "a".repeat(100) + "@x.example" }));   // 110 chars
+  await assertFails(opUpd("adminA", "A", { name: "N", email: "a".repeat(120) + "@x.example" }));       // > 120
+  await assertFails(opUpd("adminA", "A", { name: "N", tel: 12345 }));
+  await assertFails(opUpd("adminA", "A", { name: "N", address: ["x"] }));
+  await assertFails(opUpd("adminA", "A", "just a string"));
+  await assertFails(opUpd("adminA", "A", ["name"]));
+  await assertFails(opUpd("adminA", "A", null));
+});
+
+test("operator: email must look like x@y.z (or be empty)", async () => {
+  for (const ok of ["a@b.co", "first.last+tag@sub.example.org", ""]) await assertSucceeds(opUpd("adminA", "A", { name: "N", email: ok }));
+  for (const bad of ["plainaddress", "@no-user.com", "no-at.example.com", "a@b", "a b@c.de", "a@b@c.de", "a@ b.de", "a@b.c "])
+    await assertFails(opUpd("adminA", "A", { name: "N", email: bad }));
+});
+
+test("operator: no unknown keys inside operator, and no other new fields on the company doc", async () => {
+  await assertFails(opUpd("adminA", "A", { name: "N", website: "x" }));
+  await assertFails(opUpd("adminA", "A", { name: "N", nested: { a: 1 } }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { operator: goodOp, isSuper: true }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { plan: "free" }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { createdAt: new Date() }));
+});
+
+test("operator: ownerUid stays protected while updating operator (and rename still works)", async () => {
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { operator: goodOp, ownerUid: "driverA" }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { ownerUid: "adminA", operator: { name: "" } }));
+  await assertSucceeds(updateDoc(doc(as("adminA"), "companies/A"), { name: "Alpha Ltd", operator: goodOp }));
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { name: "" }));                       // name still required
+  await assertFails(updateDoc(doc(as("adminA"), "companies/A"), { name: "x".repeat(121) }));
+  const snap = await assertSucceeds(getDoc(doc(as("adminA"), "companies/A")));
+  assert.equal(snap.data().ownerUid, "adminA"); assert.equal(snap.data().name, "Alpha Ltd");
+});
+
+test("operator: registration cannot smuggle an operator in; later it is only changeable by the admin", async () => {
+  // create still only allows name/ownerUid/createdAt
+  const d = env.authenticatedContext("newOwner2").firestore();
+  const b = writeBatch(d);
+  b.set(doc(d, "companies/F"), { name: "Foxtrot", ownerUid: "newOwner2", createdAt: serverTimestamp(), operator: goodOp });
+  b.set(doc(d, "users/newOwner2"), { companyId: "F", role: "admin", name: "Fay", email: "f@f.com", createdAt: serverTimestamp() });
+  await assertFails(b.commit());
+});
+
+test("route operator fields: admins can write them (incl. the custom flag) and 'apply to all' style batch updates; drivers cannot", async () => {
+  await assertSucceeds(updateDoc(doc(as("adminA"), "companies/A/routes/r1"), { operator: goodOp, operatorCustom: false }));
+  await assertSucceeds(setDoc(doc(as("adminA"), "companies/A/routes/r2"), { ...newRoute, operator: { name: "Custom Co" }, operatorCustom: true }));
+  const d = as("adminA");
+  const b = writeBatch(d);
+  b.update(doc(d, "companies/A/routes/r1"), { operator: goodOp, operatorCustom: false });
+  b.update(doc(d, "companies/A/routes/r2"), { operator: goodOp, operatorCustom: false });
+  await assertSucceeds(b.commit());
+  await assertFails(updateDoc(doc(as("driverA"), "companies/A/routes/r1"), { operator: { name: "Evil" } }));
+  await assertFails(updateDoc(doc(as("driverA"), "companies/A/routes/r1"), { operatorCustom: true }));
+  await assertFails(updateDoc(doc(as("adminB"), "companies/A/routes/r1"), { operator: { name: "Evil" } }));
+  const dB = as("adminB");
+  const bb = writeBatch(dB);
+  bb.update(doc(dB, "companies/A/routes/r1"), { operator: goodOp });
+  await assertFails(bb.commit());
+});

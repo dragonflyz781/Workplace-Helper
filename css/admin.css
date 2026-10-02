@@ -188,3 +188,18 @@ input[type=date]{ display:block; width:100%; margin-top:4px; padding:9px 11px; f
   .run-head .lbl{ display:block; }
   .run-head .num{ text-align:left; }
 }
+
+/* ---- operator details (company tab + route editor indicator) ---- */
+.op-modes{ display:flex; flex-direction:column; gap:8px; margin:10px 0; }
+.op-mode{ display:flex; gap:10px; align-items:flex-start; font-size:14px; line-height:1.4; cursor:pointer; }
+.op-mode input{ margin-top:3px; width:auto; }
+.op-status-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.op-status{ font-size:12.5px; font-weight:700; padding:3px 10px; border-radius:999px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); }
+.op-status.company{ color:var(--route); border-color:var(--route); }
+.op-status.custom{ background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+.pill.op-pill[data-op="custom"]{ color:var(--accent); border-color:var(--accent); }
+
+/* admin tabs never push the page wider than a phone: they scroll sideways instead */
+.admin-tabs{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.admin-tabs .tab-btn{ white-space:nowrap; flex:0 0 auto; }
+@media (max-width:560px){ #opForm .grid2{ grid-template-columns:1fr; } }

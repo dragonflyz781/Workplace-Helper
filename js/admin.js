@@ -3,12 +3,13 @@ import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
-  doc, collection, setDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp
+  doc, collection, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 import { createSecondaryAuth } from "./firebase-init.js";
 import { $, esc, toast, setView, friendlyError, toggleTheme } from "./ui.js";
 import { parseGPX, fitTrack, decodePolyline, encodePolyline } from "./geo.js";
 import { initRuns } from "./runs.js";
+import { normOp, opEmpty, opEqual, validateOperator, routeIsCustom, planApply, OP_LIMITS } from "./operator.js";
 
 let ctx = null;            // { db, auth, user, profile, companyId, company, openDriver, signOutAndReset }
 let rawRoutes = {};        // id -> Firestore data (kept up to date by main.js)
@@ -25,6 +26,7 @@ export function initAdmin(c) {
   if (!wired) { wired = true; wire(); }
   subscribeUsers();
   initRuns(c);
+  fillOperatorForm(); renderApplyInfo();
 }
 
 export function showAdmin() {
@@ -34,20 +36,33 @@ export function showAdmin() {
 
 export function onRoutesChanged(raw) {
   rawRoutes = raw;
-  if (ctx) renderRouteList();
+  if (ctx) { renderRouteList(); renderApplyInfo(); }
 }
+
+/* the company doc changed (live listener in main.js) */
+export function onCompanyChanged(company) {
+  if (!ctx) return;
+  ctx.company = company;
+  $("adminCompany").textContent = company.name;
+  if (!opDirty) fillOperatorForm();
+  renderApplyInfo();
+  renderRouteList();
+}
+
+const companyOp = () => normOp(ctx && ctx.company && ctx.company.operator);
 
 function wire() {
   $("adminToDriver").addEventListener("click", () => ctx.openDriver());
   $("adminSignOut").addEventListener("click", () => ctx.signOutAndReset());
   $("adminTheme").addEventListener("click", toggleTheme);
   const tab = (name) => {
-    [["Routes", "admRoutes"], ["Drivers", "admDrivers"], ["Runs", "admRuns"]].forEach(([n, sec]) => {
+    [["Routes", "admRoutes"], ["Operator", "admOperator"], ["Drivers", "admDrivers"], ["Runs", "admRuns"]].forEach(([n, sec]) => {
       $("admTab" + n).classList.toggle("active", n === name);
       $(sec).style.display = n === name ? "" : "none";
     });
   };
   $("admTabRoutes").addEventListener("click", () => tab("Routes"));
+  $("admTabOperator").addEventListener("click", () => tab("Operator"));
   $("admTabDrivers").addEventListener("click", () => tab("Drivers"));
   $("admTabRuns").addEventListener("click", () => tab("Runs"));
   $("newRouteBtn").addEventListener("click", () => openEditor(null));
@@ -56,10 +71,17 @@ function wire() {
   $("dvGen").addEventListener("click", () => { $("dvPass").value = randomPassword(); });
   $("edBack").addEventListener("click", closeEditor);
   $("edSave").addEventListener("click", saveDraft);
+  wireOperator();
 }
 
 /* =============================================================== route list */
 function sessionLabel(s) { return s === "AM" ? "AM" : s === "PM" ? "PM" : s === "both" ? "AM+PM" : "—"; }
+
+/* "custom" (route-specific), "company" (follows / equals the company operator) or "none" */
+function opState(r) {
+  if (routeIsCustom(r, companyOp())) return "custom";
+  return opEmpty(r.operator) && opEmpty(companyOp()) ? "none" : "company";
+}
 
 function renderRouteList() {
   const list = $("adminRouteList");
@@ -81,7 +103,8 @@ function renderRouteList() {
       '<div class="route-badge">' + esc(initials) + "</div>" +
       '<div class="route-meta"><div class="name">' + esc(r.name || "Untitled") + "</div>" +
       '<div class="sub"><span class="pill">' + esc(r.category || "other") + '</span><span class="pill">' + esc(sessionLabel(r.session)) + "</span>" +
-      (r.stops ? r.stops.length : 0) + " stops · " + (r.trackPoints || 0) + " pts</div></div>" +
+      (r.stops ? r.stops.length : 0) + " stops · " + (r.trackPoints || 0) + " pts" +
+      ' <span class="pill op-pill" data-op="' + opState(r) + '" title="Operator details shown to drivers on this route">Operator: ' + opState(r) + "</span></div></div>" +
       '<div class="arow-actions"><button class="btn small" data-act="edit">Edit</button>' +
       '<button class="btn small danger" data-act="del">Delete</button></div>';
     el.querySelector('[data-act="edit"]').addEventListener("click", () => openEditor(id));
@@ -120,6 +143,7 @@ function buildDoc(d) {
   });
   const op = clean(d.operator || {});
   if (Object.keys(op).length) data.operator = op;
+  data.operatorCustom = !!d.operatorCustom && Object.keys(op).length > 0;   // false = follows the company operator
   const contacts = (d.contacts || []).map((c) => clean(c)).filter((c) => c.label || c.tel);
   if (contacts.length) data.contacts = contacts;
   const tt = {};
@@ -150,7 +174,8 @@ function checkSize(data) {
 
 /* =============================================================== sample import */
 async function importSamples() {
-  if (!confirm("Import Keith's 38 sample Swansea school/college routes into your company?\n\n(Running it twice just refreshes the same routes - it won't create duplicates.)")) return;
+  if (!confirm("Import Keith's 38 sample Swansea school/college routes into your company?\n\n(Running it twice just refreshes the same routes - it won't create duplicates.)" +
+    (opEmpty(companyOp()) ? "" : "\n\nThey will use your company operator details (" + companyOp().name + ")."))) return;
   const btn = $("importSampleBtn");
   btn.disabled = true;
   try {
@@ -161,9 +186,11 @@ async function importSamples() {
       const batch = writeBatch(ctx.db);
       ids.slice(i, i + 15).forEach((id) => {
         const s = SAMPLE_ROUTES[id];
+        // company operator set -> imported routes use it; otherwise the sample's own operator is kept (as a custom one)
+        const sampleOp = opEmpty(companyOp()) ? { operator: s.operator || {}, custom: true } : { operator: companyOp(), custom: false };
         const { data } = buildDoc({
           name: s.name, category: s.category || "school", session: s.session, note: s.note, capacity: s.capacity,
-          specifiedRoute: s.specifiedRoute, addedAt: s.addedAt, operator: s.operator || {}, contacts: s.contacts || [],
+          specifiedRoute: s.specifiedRoute, addedAt: s.addedAt, operator: sampleOp.operator, operatorCustom: sampleOp.custom, contacts: s.contacts || [],
           timetable: s.timetable || {},
           track: s.track || [], stops: (s.stops || []).map((p, k) => ({ lat: p[0], lng: p[1], name: "Stop " + (k + 1) }))
         });
@@ -173,7 +200,7 @@ async function importSamples() {
       });
       await batch.commit();
     }
-    toast("Imported " + ids.length + " sample routes.");
+    toast("Imported " + ids.length + " sample routes" + (opEmpty(companyOp()) ? "." : " with your company operator details."));
   } catch (e) {
     console.warn("Import failed:", e && e.message);
     toast("Import failed: " + friendlyError(e), true);
@@ -187,7 +214,7 @@ let draft = null, editingId = null, edMap = null, edTrack = null, edStops = null
 function blankDraft() {
   return {
     name: "", category: "school", session: "both", note: "", capacity: "", specifiedRoute: "", addedAt: null,
-    operator: { name: "", address: "", tel: "", email: "" }, contacts: [],
+    operator: { name: "", address: "", tel: "", email: "" }, operatorCustom: false, contacts: [],
     timetable: { morning: [], afternoon: [], morningNote: "", afternoonNote: "" },
     track: [], stops: []
   };
@@ -215,6 +242,15 @@ function draftFromRaw(d) {
 function openEditor(id) {
   editingId = id;
   draft = id ? draftFromRaw(rawRoutes[id]) : blankDraft();
+  if (id) {
+    // routes that follow the company show the company's CURRENT details; custom ones keep their own
+    draft.operatorCustom = routeIsCustom(rawRoutes[id], companyOp());
+    if (!draft.operatorCustom && !opEmpty(companyOp())) draft.operator = Object.assign({ name: "", address: "", tel: "", email: "" }, companyOp());
+  } else {
+    // new route: pre-filled from the company operator (editable per route)
+    draft.operator = Object.assign({ name: "", address: "", tel: "", email: "" }, companyOp());
+    draft.operatorCustom = false;
+  }
   addingStop = false;
   trackInfo = id && rawRoutes[id].trackOriginalPoints && rawRoutes[id].trackSimplifiedToleranceM
     ? "Stored track was simplified from " + rawRoutes[id].trackOriginalPoints.toLocaleString() + " to " + rawRoutes[id].trackPoints.toLocaleString() + " points." : "";
@@ -256,9 +292,11 @@ function buildEditorDom() {
       '<div class="row"><button class="btn small" id="ttAddAfternoon" type="button">＋ Add row</button><button class="btn small" id="ttFillAfternoon" type="button">Fill from stops</button></div>' +
       '<label style="margin-top:8px">Afternoon note <span class="muted">(optional)</span><input type="text" id="ed_afternoonNote" maxlength="300"></label></div>' +
     '<div class="ed-card"><h3>Operator &amp; vehicle</h3>' +
-      '<label>Operator name<input type="text" id="ed_op_name" maxlength="120"></label>' +
-      '<label>Address<input type="text" id="ed_op_address" maxlength="250"></label>' +
-      '<div class="grid2"><label>Telephone<input type="tel" id="ed_op_tel" maxlength="40"></label><label>Email<input type="email" id="ed_op_email" maxlength="120"></label></div>' +
+      '<div class="op-status-row"><span class="op-status" id="ed_op_status" role="status"></span>' +
+      '<button class="btn small" id="ed_op_reset" type="button" title="Replace this route\'s operator details with the company operator">Reset to company details</button></div>' +
+      '<label>Operator name<input type="text" id="ed_op_name" maxlength="' + OP_LIMITS.name + '"></label>' +
+      '<label>Address<input type="text" id="ed_op_address" maxlength="' + OP_LIMITS.address + '"></label>' +
+      '<div class="grid2"><label>Telephone<input type="tel" id="ed_op_tel" maxlength="' + OP_LIMITS.tel + '"></label><label>Email<input type="email" id="ed_op_email" maxlength="' + OP_LIMITS.email + '"></label></div>' +
       '<label>Capacity <span class="muted">(e.g. 53 seats)</span><input type="text" id="ed_capacity" maxlength="60"></label>' +
       '<label>Specified route <span class="muted">(road names, optional)</span><textarea id="ed_specified" maxlength="3000"></textarea></label>' +
       '<div class="muted" style="margin:6px 0 4px;font-weight:600">Other contacts</div><div id="contactList"></div>' +
@@ -277,10 +315,11 @@ function buildEditorDom() {
   bind("ed_note", () => d.note, (v) => (d.note = v));
   bind("ed_morningNote", () => d.timetable.morningNote, (v) => (d.timetable.morningNote = v));
   bind("ed_afternoonNote", () => d.timetable.afternoonNote, (v) => (d.timetable.afternoonNote = v));
-  bind("ed_op_name", () => d.operator.name, (v) => (d.operator.name = v));
-  bind("ed_op_address", () => d.operator.address, (v) => (d.operator.address = v));
-  bind("ed_op_tel", () => d.operator.tel, (v) => (d.operator.tel = v));
-  bind("ed_op_email", () => d.operator.email, (v) => (d.operator.email = v));
+  bind("ed_op_name", () => d.operator.name, (v) => { d.operator.name = v; editorOpChanged(); });
+  bind("ed_op_address", () => d.operator.address, (v) => { d.operator.address = v; editorOpChanged(); });
+  bind("ed_op_tel", () => d.operator.tel, (v) => { d.operator.tel = v; editorOpChanged(); });
+  bind("ed_op_email", () => d.operator.email, (v) => { d.operator.email = v; editorOpChanged(); });
+  $("ed_op_reset").addEventListener("click", resetEditorOp);
   bind("ed_capacity", () => d.capacity, (v) => (d.capacity = v));
   bind("ed_specified", () => d.specifiedRoute, (v) => (d.specifiedRoute = v));
 
@@ -292,7 +331,33 @@ function buildEditorDom() {
   $("ttFillAfternoon").addEventListener("click", () => fillFromStops("afternoon"));
   $("contactAdd").addEventListener("click", () => { d.contacts.push({ label: "", tel: "" }); renderContacts(); });
 
-  renderStopList(); renderTimetable("morning"); renderTimetable("afternoon"); renderContacts(); updateGpxInfo();
+  renderStopList(); renderTimetable("morning"); renderTimetable("afternoon"); renderContacts(); updateGpxInfo(); renderEditorOpStatus();
+}
+
+/* ---- operator indicator in the editor ---- */
+function editorOpChanged() {
+  // typing details that differ from the company's makes the route "custom"; matching them again goes back to company
+  draft.operatorCustom = !opEqual(draft.operator, companyOp());
+  renderEditorOpStatus();
+}
+function renderEditorOpStatus() {
+  const el = $("ed_op_status"), btn = $("ed_op_reset");
+  if (!el) return;
+  const none = opEmpty(companyOp());
+  el.dataset.state = draft.operatorCustom ? "custom" : "company";
+  el.className = "op-status " + (draft.operatorCustom ? "custom" : "company");
+  el.textContent = draft.operatorCustom ? "Custom for this route"
+    : "Using company operator details" + (none ? " (none set yet – add them on the Operator tab)" : "");
+  btn.disabled = !draft.operatorCustom;
+  btn.style.visibility = draft.operatorCustom ? "visible" : "hidden";
+}
+function resetEditorOp() {
+  const co = companyOp();
+  if (opEmpty(co) && !confirm("The company has no operator details yet, so this will empty the route's operator fields. Continue?")) return;
+  draft.operator = Object.assign({ name: "", address: "", tel: "", email: "" }, co);
+  ["name", "address", "tel", "email"].forEach((k) => { $("ed_op_" + k).value = draft.operator[k] || ""; });
+  draft.operatorCustom = false;
+  renderEditorOpStatus();
 }
 
 function updateGpxInfo() {
@@ -473,8 +538,10 @@ async function saveDraft() {
         if (!/^\d{2}:\d{2}$/.test((r.time || "").trim())) throw new Error("Every " + k + " timetable row needs a time (HH:MM). Check “" + r.stop + "”.");
       }
     }
+    const opEmail = String((d.operator && d.operator.email) || "").trim();
+    if (opEmail && validateOperator({ name: "x", email: opEmail })) throw new Error("The operator email address doesn't look right.");
     $("edSave").disabled = true;
-    const { data, fit } = buildDoc(Object.assign({}, d, { timetable: Object.assign({}, d.timetable, toSave) }));
+    const { data, fit } = buildDoc(Object.assign({}, d, { operatorCustom: d.operatorCustom && !opEmpty(d.operator), timetable: Object.assign({}, d.timetable, toSave) }));
     data.updatedAt = serverTimestamp();
     data.updatedBy = ctx.user.uid;
     checkSize(data);
@@ -487,6 +554,108 @@ async function saveDraft() {
     toast(friendlyError(e), true);
   }
   $("edSave").disabled = false;
+}
+
+/* =============================================================== company operator tab */
+let opDirty = false;
+const OP_FIELDS = [["name", "opName"], ["address", "opAddress"], ["tel", "opTel"], ["email", "opEmail"]];
+
+function wireOperator() {
+  OP_FIELDS.forEach(([, id]) => $(id).addEventListener("input", () => { opDirty = true; $("opMsg").textContent = ""; }));
+  $("opForm").addEventListener("submit", saveCompanyOperator);
+  $("opApplyBtn").addEventListener("click", applyToAllRoutes);
+  document.querySelectorAll('input[name="opApplyMode"]').forEach((r) => r.addEventListener("change", renderApplyInfo));
+}
+
+function fillOperatorForm() {
+  const co = companyOp();
+  OP_FIELDS.forEach(([k, id]) => { $(id).value = co[k] || ""; });
+  opDirty = false;
+}
+
+function readOperatorForm() {
+  const o = {};
+  OP_FIELDS.forEach(([k, id]) => { o[k] = $(id).value; });
+  return o;
+}
+
+async function saveCompanyOperator(ev) {
+  ev.preventDefault();
+  const msg = $("opMsg");
+  msg.className = "form-msg"; msg.textContent = "";
+  const raw = readOperatorForm();
+  const err = validateOperator(raw);
+  if (err) { msg.textContent = err; return; }
+  const op = normOp(raw);
+  $("opSave").disabled = true;
+  try {
+    await updateDoc(doc(ctx.db, "companies", ctx.companyId), { operator: op });
+    ctx.company = Object.assign({}, ctx.company, { operator: op });
+    opDirty = false;
+    renderApplyInfo(true);
+    msg.className = "form-msg ok";
+    msg.textContent = "Operator details saved. New routes will use them from now on.";
+  } catch (e) {
+    console.warn("Save operator failed:", e && (e.code || e.message));
+    msg.textContent = friendlyError(e);
+  }
+  $("opSave").disabled = false;
+}
+
+const applyMode = () => (document.querySelector('input[name="opApplyMode"]:checked') || {}).value || "fill";
+
+/* explains what "Apply to all routes" would do right now (saved company details only) */
+function renderApplyInfo(justSaved) {
+  const info = $("opApplyInfo"), btn = $("opApplyBtn");
+  if (!info) return;
+  const co = companyOp();
+  if (opEmpty(co)) {
+    info.textContent = "Save the operator details above first; then you can apply them to the routes you already have.";
+    btn.disabled = true; btn.textContent = "Apply to all routes"; return;
+  }
+  const mode = applyMode();
+  const plan = planApply(rawRoutes, co, mode);
+  const n = plan.targets.length;
+  const parts = [];
+  parts.push(plan.total + " route" + (plan.total === 1 ? "" : "s") + " in total");
+  parts.push(n + " would be updated");
+  if (mode !== "all" && plan.keptCustom) parts.push(plan.keptCustom + " custom kept as they are");
+  if (plan.alreadyCurrent) parts.push(plan.alreadyCurrent + " already use the company details");
+  info.textContent = (justSaved && n ? "Saved. " + n + " existing route" + (n === 1 ? " doesn't" : "s don't") + " use these details yet – apply them below if you want. " : "") + parts.join(" · ") + ".";
+  btn.disabled = n === 0;
+  btn.textContent = "Apply to all routes" + (n ? " (" + n + ")" : "");
+}
+
+async function applyToAllRoutes() {
+  const msg = $("opApplyMsg");
+  msg.className = "form-msg"; msg.textContent = "";
+  if (opDirty) { msg.textContent = "You have unsaved changes above – save them first, then apply."; return; }
+  const co = companyOp();
+  if (opEmpty(co)) return;
+  const mode = applyMode();
+  const plan = planApply(rawRoutes, co, mode);
+  if (!plan.targets.length) { msg.className = "form-msg ok"; msg.textContent = "Nothing to update – every route already uses the company details."; return; }
+  const what = mode === "all"
+    ? "OVERWRITE the operator details of " + plan.targets.length + " route(s) with the company operator details – including routes with their own custom details."
+    : "Set the company operator details on " + plan.targets.length + " route(s) that have none or already use the company details. " + plan.keptCustom + " custom route(s) are left alone.";
+  if (!confirm(what + "\n\nCompany operator: " + co.name + (co.tel ? " · " + co.tel : "") + "\n\nContinue?")) return;
+  $("opApplyBtn").disabled = true;
+  try {
+    for (let i = 0; i < plan.targets.length; i += 400) {
+      const batch = writeBatch(ctx.db);
+      plan.targets.slice(i, i + 400).forEach((id) => {
+        batch.update(doc(routesCol(), id), { operator: co, operatorCustom: false, updatedAt: serverTimestamp(), updatedBy: ctx.user.uid });
+      });
+      await batch.commit();
+    }
+    msg.className = "form-msg ok";
+    msg.textContent = "Updated " + plan.targets.length + " route" + (plan.targets.length === 1 ? "" : "s") + ".";
+    toast("Operator details applied to " + plan.targets.length + " route" + (plan.targets.length === 1 ? "" : "s") + ".");
+  } catch (e) {
+    console.warn("Apply operator failed:", e && (e.code || e.message));
+    msg.textContent = "Could not update all routes: " + friendlyError(e) + " (some may already have been changed – check the route list.)";
+  }
+  renderApplyInfo();
 }
 
 /* =============================================================== drivers */

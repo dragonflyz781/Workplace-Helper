@@ -79,6 +79,7 @@
   </header>
   <nav class="admin-tabs">
     <button class="tab-btn active" id="admTabRoutes">Routes</button>
+    <button class="tab-btn" id="admTabOperator">Operator details</button>
     <button class="tab-btn" id="admTabDrivers">Drivers</button>
     <button class="tab-btn" id="admTabRuns">Runs</button>
   </nav>
@@ -90,6 +91,35 @@
       </div>
       <div class="muted" id="routesStatus"></div>
       <div id="adminRouteList"></div>
+    </section>
+    <section id="admOperator" style="display:none">
+      <div class="card wide">
+        <h2>Operator details</h2>
+        <p class="muted">Your company's operator (shown to drivers in each route's Schedule, under “Operator”). New routes and imported routes get these details automatically; each route can still have its own.</p>
+        <form id="opForm" autocomplete="off" novalidate>
+          <div class="grid2">
+            <label>Operator name <span class="muted">(required)</span><input type="text" id="opName" maxlength="120" placeholder="e.g. Alpha Coaches Ltd"></label>
+            <label>Telephone <span class="muted">(any format)</span><input type="tel" id="opTel" maxlength="40" placeholder="e.g. 01792 123456"></label>
+          </div>
+          <label>Address<input type="text" id="opAddress" maxlength="250" placeholder="Street, town, postcode"></label>
+          <label>Email<input type="email" id="opEmail" maxlength="120" placeholder="office@example.com"></label>
+          <button class="btn primary" type="submit" id="opSave">Save operator details</button>
+        </form>
+        <div class="form-msg" id="opMsg" role="status"></div>
+      </div>
+      <div class="card wide" id="opApplyCard">
+        <h2>Apply to existing routes</h2>
+        <p class="muted">Saving only changes the company default and routes you create or import afterwards. To put the saved details on routes you already have, choose how and press the button.</p>
+        <div class="op-modes">
+          <label class="op-mode"><input type="radio" name="opApplyMode" id="opModeFill" value="fill" checked>
+            <span><b>Only fill routes that have no operator details</b> (also refreshes routes that already use the company details; routes marked “Custom” are kept)</span></label>
+          <label class="op-mode"><input type="radio" name="opApplyMode" id="opModeAll" value="all">
+            <span><b>Overwrite all routes</b> (replaces every route's operator – including custom ones)</span></label>
+        </div>
+        <div class="muted" id="opApplyInfo" role="status"></div>
+        <div class="toolbar" style="margin-top:10px"><button class="btn primary" type="button" id="opApplyBtn" disabled>Apply to all routes</button></div>
+        <div class="form-msg" id="opApplyMsg" role="status"></div>
+      </div>
     </section>
     <section id="admDrivers" style="display:none">
       <div class="card wide">

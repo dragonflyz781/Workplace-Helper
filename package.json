@@ -5,7 +5,7 @@
   "scripts": {
     "test:rules": "firebase emulators:exec --only firestore --project demo-multico-rules \"node --test tests/rules.test.mjs\"",
     "demo": "firebase emulators:start --project demo-multico",
-    "test:geo": "node --test tests/geo.test.mjs",
+    "test:geo": "node --test tests/geo.test.mjs tests/operator.test.mjs",
     "test:e2e": "firebase emulators:exec --only auth,firestore,hosting --project demo-multico \"${E2E_PYTHON:-/tmp/v/bin/python} tests/e2e.py\"",
     "test": "npm run test:geo && npm run test:rules && npm run test:e2e",
     "build:www": "node tools/make-www.mjs"

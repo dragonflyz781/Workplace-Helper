@@ -1,6 +1,6 @@
 {
- "passed": 109,
- "total": 109,
+ "passed": 197,
+ "total": 197,
  "checks": [
   [
    "placeholder firebase-config.js shows the 'connect Firebase' setup screen",
@@ -20,12 +20,12 @@
   [
    "users/{uid} has role admin + companyId",
    true,
-   "{'companyId': 'IS5GYqM7Osqg6q7dK8Q2', 'role': 'admin', 'name': 'Ann Admin', 'email': 'ann@alpha.test', 'createdAt': {'seconds': 1790974527, 'nanoseconds': 865000000}}"
+   "{'companyId': '2jeSZlz9gNwhsr50zCDV', 'role': 'admin', 'name': 'Ann Admin', 'email': 'ann@alpha.test', 'createdAt': {'seconds': 1790979630, 'nanoseconds': 329000000}}"
   ],
   [
    "company doc created with ownerUid",
    true,
-   "{'name': 'Alpha Coaches', 'ownerUid': 'ifELZbyxr5zoYAjcu6h5i55C8ezj', 'createdAt': {'seconds': 1790974527, 'nanoseconds': 865000000}}"
+   "{'name': 'Alpha Coaches', 'ownerUid': '1NWgim96eQ8hjn9bILbn3QrwY3t6', 'createdAt': {'seconds': 1790979630, 'nanoseconds': 329000000}}"
   ],
   [
    "GPX upload: 4 named route points -> stops",
@@ -60,12 +60,12 @@
   [
    "route saved and listed",
    true,
-   "GOR\nGorseinon Sample (AM)\nschoolAM4 stops \u00b7 76 pts\nEdit\nDelete"
+   "GOR\nGorseinon Sample (AM)\nschoolAM4 stops \u00b7 76 pts Operator: custom\nEdit\nDelete"
   ],
   [
    "stored doc: stops/timetable/operator/track fields",
    true,
-   "{'name': 'Gorseinon Sample (AM)', 'category': 'school', 'session': 'AM', 'note': 'Test route created by the e2e test', 'capacity': '53 seats', 'addedAt': '2026-10-02T20:55:31.017Z', 'operator': {'name': 'Alpha Coaches Ltd', 'tel': '01792 000000', 'email': 'ops@alpha.test'}, 'contacts': [{'label': 'Depot', 'tel': '01792 111111'}], 'timetable': {'morning': [{'stop': 'Gorseinon Square', 'time': '07:40'}, {'stop': 'Pontarddulais Road', 'time': '07:52'}, {'stop': 'Penyrheol Comprehensive School', 'time': '08:05'}, {'stop': 'Gorseinon College', 'time': '08:20'}], 'afternoon': [{'stop': 'Gorseinon College', 'time': '15:35'}, {'stop': 'Clydach Post Office', 'time': '16:10'}], 'afternoonNote': 'Wait 5 minutes for late finishers'}, 'stops': [{'lat': 51.665, 'lng': -4.038, 'name': 'Gorseinon Square'}, {'lat': 51.67, 'lng': -3.95, 'name': 'Pontarddulais Road'}, {'lat': 51.658, 'lng': -4.06, 'name': 'Penyrheol Comprehensive School'}, {'lat': 51.68533, 'lng': -3.98872, 'name': 'Gorseinon College'}], 'trackEnc': '...', 'trackPoints': 76, 'trackOriginalPoints': 76, 'updatedBy': 'ifELZbyxr5zoYAjcu6h5i55C8ezj', 'updatedAt': {'seconds': 1790974531, 'nanoseconds': 58000000}}"
+   "{'name': 'Gorseinon Sample (AM)', 'category': 'school', 'session': 'AM', 'note': 'Test route created by the e2e test', 'capacity': '53 seats', 'addedAt': '2026-10-02T22:20:33.486Z', 'operator': {'name': 'Alpha Coaches Ltd', 'tel': '01792 000000', 'email': 'ops@alpha.test'}, 'operatorCustom': True, 'contacts': [{'label': 'Depot', 'tel': '01792 111111'}], 'timetable': {'morning': [{'stop': 'Gorseinon Square', 'time': '07:40'}, {'stop': 'Pontarddulais Road', 'time': '07:52'}, {'stop': 'Penyrheol Comprehensive School', 'time': '08:05'}, {'stop': 'Gorseinon College', 'time': '08:20'}], 'afternoon': [{'stop': 'Gorseinon College', 'time': '15:35'}, {'stop': 'Clydach Post Office', 'time': '16:10'}], 'afternoonNote': 'Wait 5 minutes for late finishers'}, 'stops': [{'lat': 51.665, 'lng': -4.038, 'name': 'Gorseinon Square'}, {'lat': 51.67, 'lng': -3.95, 'name': 'Pontarddulais Road'}, {'lat': 51.658, 'lng': -4.06, 'name': 'Penyrheol Comprehensive School'}, {'lat': 51.68533, 'lng': -3.98872, 'name': 'Gorseinon College'}], 'trackEnc': '...', 'trackPoints': 76, 'trackOriginalPoints': 76, 'updatedBy': '1NWgim96eQ8hjn9bILbn3QrwY3t6', 'updatedAt': {'seconds': 1790979633, 'nanoseconds': 523000000}}"
   ],
   [
    "edit: form pre-filled from Firestore",
@@ -80,7 +80,7 @@
   [
    "big GPX stored: <=12,000 pts, doc far below 1 MiB",
    true,
-   "pts=3094 bytes~10436 tol=1"
+   "pts=3094 bytes~10461 tol=1"
   ],
   [
    "big GPX fidelity: max deviation of original points from stored track < 15 m",
@@ -150,12 +150,12 @@
   [
    "driver Schedule tab shows timetable times, stops and note",
    true,
-   "Test route created by the e2e test\nMORNING\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\n07:52\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\n08:05\nGorseinon College\nDone\nOnboard change:\n\u2212\n0\n+\n08:20\nAFTERNOON\nGorseinon College\nDone\nOnboard"
+   "Test route created by the e2e test\nMORNING\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n07:52\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n08:05\nGorseinon College\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 "
   ],
   [
    "Sat-Nav mode starts: top bar with clock/speed/limit visible, no GPS/Google Maps buttons",
    true,
-   "{'mode': True, 'clock': '21:55', 'topVisible': 'flex', 'speedBox': True, 'limitBox': True, 'noGps': True, 'noGmaps': True, 'bearing': True}"
+   "{'mode': True, 'clock': '23:20', 'topVisible': 'flex', 'speedBox': True, 'limitBox': True, 'noGps': True, 'noGmaps': True, 'bearing': True}"
   ],
   [
    "real-time: admin edit appears on driver's screen without reload",
@@ -300,7 +300,7 @@
   [
    "localStorage run state has per-stop counts (stop1 3/1, stop2 2/0, stop3 1/1, unscheduled 2/0)",
    true,
-   "{'byStop': {}, 'byGpsStop': {'0': 2, '1': 2, '2': 0}, 'adhoc': 2, 'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'startedAt': 1790974553783}"
+   "{'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1790979655986}"
   ],
   [
    "Finish button visible in Sat-Nav view",
@@ -310,7 +310,7 @@
   [
    "after a page refresh the per-stop counts are still there",
    true,
-   "{'byStop': {}, 'byGpsStop': {'0': 2, '1': 2, '2': 0}, 'adhoc': 2, 'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'startedAt': 1790974553783}"
+   "{'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '2': 1}, 'adhocOn': 2, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1790979655986}"
   ],
   [
    "'Finish & submit run' button visible in driver view when a route is active",
@@ -330,7 +330,7 @@
   [
    "exactly one run document written at companies/{cid}/runs/{autoId}",
    true,
-   "['hjft1dIg3IX76wTaIx5i']"
+   "['Y2SB51lu1Op31AfLEnc4']"
   ],
   [
    "run doc has exactly the specified keys",
@@ -340,12 +340,12 @@
   [
    "run doc: routeId/routeName/session/driverUid/driverName (from users/{uid}.name)",
    true,
-   "{'id': 'hjft1dIg3IX76wTaIx5i', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': 1790974553783, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974557620}"
+   "{'id': 'Y2SB51lu1Op31AfLEnc4', 'routeId': 'PjUWe3DSx3sjjvBihcAX', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'C6Sm5ihYpGmoxMpuBDIlTTxLLSZG', 'driverName': 'Dave Driver', 'startedAt': 1790979655986, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790979659735}"
   ],
   [
    "run doc: totals + unscheduled",
    true,
-   "{'id': 'hjft1dIg3IX76wTaIx5i', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': 1790974553783, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974557620}"
+   "{'id': 'Y2SB51lu1Op31AfLEnc4', 'routeId': 'PjUWe3DSx3sjjvBihcAX', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'C6Sm5ihYpGmoxMpuBDIlTTxLLSZG', 'driverName': 'Dave Driver', 'startedAt': 1790979655986, 'totalBoarded': 8, 'totalAlighted': 2, 'unscheduledBoarded': 2, 'unscheduledAlighted': 0, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 1}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790979659735}"
   ],
   [
    "run doc: per-stop {index,name,boarded,alighted}",
@@ -355,12 +355,12 @@
   [
    "run doc: startedAt <= submittedAt, submittedAt is recent (server time)",
    true,
-   "(1790974553783, 1790974557620)"
+   "(1790979655986, 1790979659735)"
   ],
   [
    "after submit the run counts for that route are reset (localStorage)",
    true,
-   "{'byStop': {}, 'byGpsStop': {}, 'adhoc': 0, 'stopsOn': {}, 'stopsOff': {}, 'adhocOn': 0, 'adhocOff': 0, 'startedAt': None}"
+   "{'stopsOn': {}, 'stopsOff': {}, 'adhocOn': 0, 'adhocOff': 0, 'unmapped': {}, 'startedAt': None}"
   ],
   [
    "no pending runs left on the phone",
@@ -410,7 +410,7 @@
   [
    "exactly 2 runs now (no duplicate from the retry); 2nd run: unscheduled 2 boarded / 1 alighted",
    true,
-   "{'id': 'K3DaMm1rONUDd7YnYMFp', 'routeId': 'Jtpt2xaxvBzEBNeD4kV5', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'gwhhzjfA8z98oNNwaf9GgSPRmk3a', 'driverName': 'Dave Driver', 'startedAt': {'seconds': 1790974558, 'nanoseconds': 0}, 'totalBoarded': 2, 'totalAlighted': 1, 'unscheduledBoarded': 2, 'unscheduledAlighted': 1, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 0, 'alighted': 0}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 0, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 0, 'alighted': 0}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790974558439}"
+   "{'id': 'P1BdGEchVBXaVsh9Vz05', 'routeId': 'PjUWe3DSx3sjjvBihcAX', 'routeName': 'Run Test Route (AM)', 'session': 'AM', 'driverUid': 'C6Sm5ihYpGmoxMpuBDIlTTxLLSZG', 'driverName': 'Dave Driver', 'startedAt': {'seconds': 1790979660, 'nanoseconds': 67000000}, 'totalBoarded': 2, 'totalAlighted': 1, 'unscheduledBoarded': 2, 'unscheduledAlighted': 1, 'stops': [{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 0, 'alighted': 0}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 0, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 0, 'alighted': 0}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}], 'submittedAt': 1790979660457}"
   ],
   [
    "stop with no name falls back to 'Stop N' and shows no invented time",
@@ -420,12 +420,12 @@
   [
    "Runs tab: newest first (row 1 = 2nd run: 2 boarded / 1 alighted; row 2 = 1st run: 8 / 2)",
    true,
-   "(['02 Oct 2026 21:55', 'Dave Driver', 'Run Test Route (AM)', 'AM', '2', '1'], ['02 Oct 2026 21:55', 'Dave Driver', 'Run Test Route (AM)', 'AM', '8', '2'])"
+   "(['02 Oct 2026 23:21', 'Dave Driver', 'Run Test Route (AM)', 'AM', '2', '1'], ['02 Oct 2026 23:20', 'Dave Driver', 'Run Test Route (AM)', 'AM', '8', '2'])"
   ],
   [
    "Runs tab: date/time column is filled",
    true,
-   "02 Oct 2026 21:55"
+   "02 Oct 2026 23:20"
   ],
   [
    "Runs tab: totals summary (10 boarded, 2 runs)",
@@ -435,7 +435,7 @@
   [
    "expanded run: per-stop table (stop, boarded, alighted) + unscheduled + total",
    true,
-   "Stop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t1\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t2\t0\nTotal\t8\t2\nStarted 02 Oct 2026 21:55 \u00b7 submitted 02 Oct 2026 21:55\nDelete run"
+   "Stop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t1\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t2\t0\nTotal\t8\t2\nStarted 02 Oct 2026 23:20 \u00b7 submitted 02 Oct 2026 23:20\nDelete run"
   ],
   [
    "filter dropdowns list the routes and drivers that have runs",
@@ -475,7 +475,7 @@
   [
    "CSV: per-stop numbers and driver name correct",
    true,
-   "{('K3DaMm1rONUDd7YnYMFp', '1'): ('Clydach (Post Office)', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '2'): ('Pontarddulais Road', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '3'): ('Gorseinon Square', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('K3DaMm1rONUDd7YnYMFp', ''): ('Unscheduled', '2', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '1'): ('Clydach (Post Office)', '3', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '2'): ('Pontarddulais Road', '2', '0', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '3'): ('Gorseinon Square', '1', '1', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('hjft1dIg3IX76wTaIx5i', ''): ('Unscheduled', '2', '0', 'Dave Driver')}"
+   "{('P1BdGEchVBXaVsh9Vz05', '1'): ('Clydach (Post Office)', '0', '0', 'Dave Driver'), ('P1BdGEchVBXaVsh9Vz05', '2'): ('Pontarddulais Road', '0', '0', 'Dave Driver'), ('P1BdGEchVBXaVsh9Vz05', '3'): ('Gorseinon Square', '0', '0', 'Dave Driver'), ('P1BdGEchVBXaVsh9Vz05', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('P1BdGEchVBXaVsh9Vz05', ''): ('Unscheduled', '2', '1', 'Dave Driver'), ('Y2SB51lu1Op31AfLEnc4', '1'): ('Clydach (Post Office)', '3', '1', 'Dave Driver'), ('Y2SB51lu1Op31AfLEnc4', '2'): ('Pontarddulais Road', '2', '0', 'Dave Driver'), ('Y2SB51lu1Op31AfLEnc4', '3'): ('Gorseinon Square', '1', '1', 'Dave Driver'), ('Y2SB51lu1Op31AfLEnc4', '4'): ('Penyrheol Comprehensive School', '0', '0', 'Dave Driver'), ('Y2SB51lu1Op31AfLEnc4', ''): ('Unscheduled', '2', '0', 'Dave Driver')}"
   ],
   [
    "Download CSV is disabled when the filtered set is empty",
@@ -485,7 +485,7 @@
   [
    "admin can delete a run (gone from list and from Firestore; summary updates)",
    true,
-   "(['hjft1dIg3IX76wTaIx5i'], '8 passengers boarded \u00b7 1 run (2 alighted)')"
+   "(['Y2SB51lu1Op31AfLEnc4'], '8 passengers boarded \u00b7 1 run (2 alighted)')"
   ],
   [
    "even an admin cannot update a run (write-once)",
@@ -516,6 +516,446 @@
    "company B cannot write a run into A (permission-denied)",
    true,
    "permission-denied"
+  ],
+  [
+   "schedule/run bug fix: precondition - no counts stored for the route",
+   true,
+   ""
+  ],
+  [
+   "Schedule taps are stored in the per-stop store keyed by stop index (stopsOn {0:2,2:1}, stopsOff {1:1}; started)",
+   true,
+   "{'stopsOn': {'0': 2, '2': 1}, 'stopsOff': {'1': 1}, 'adhocOn': 0, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1790979663967}"
+  ],
+  [
+   "Schedule rows show the net per stop (+2 / -1 / +1 / 0) and on/off detail",
+   true,
+   "['2', '-1', '1', '0']"
+  ],
+  [
+   "confirm dialog shows the Schedule-tab taps (stop1 2/0, stop2 0/1, stop3 1/0, total 3/1) and NO 'not part of' note",
+   true,
+   "Finish & submit run\nRun Test Route (AM) \u00b7 AM\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t2\t0\n2. Pontarddulais Road\t0\t1\n3. Gorseinon Square\t1\t0\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t0\t0\nTotal\t3\t1\nCancel\nSubmit"
+  ],
+  [
+   "exactly one new run written",
+   true,
+   "{'B92NfbTBPnKDNZlvU1Ij'}"
+  ],
+  [
+   "submitted run (Schedule taps only): per-stop boarded/alighted and totals include them",
+   true,
+   "[{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 2, 'alighted': 0}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 0, 'alighted': 1}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 0}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 0}]"
+  ],
+  [
+   "after submit both sources are cleared: store empty, Schedule rows 0, map counter 0",
+   true,
+   "{'stopsOn': {}, 'stopsOff': {}, 'adhocOn': 0, 'adhocOff': 0, 'unmapped': {}, 'startedAt': None}"
+  ],
+  [
+   "admin Runs tab shows the Schedule-tab passengers (per-stop table + totals 3 / 1)",
+   true,
+   "02 Oct 2026 23:21\nDave Driver\nRun Test Route (AM)\nAM\n3\n1\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t2\t0\n2. Pontarddulais Road\t0\t1\n3. Gorseinon Square\t1\t0\n4. Penyrheol Comprehensive School\t0\t0\nUnscheduled (not at a stop)\t0\t0\nTotal\t3\t1\nStarted 02 Oct 2026 23:21 \u00b7 submitted 02 Oct 2026 23:21\nDelete run"
+  ],
+  [
+   "map taps show on the Schedule rows too (stop 1: net +1, 'on 2 \u00b7 off 1') - one shared store",
+   true,
+   "('1', 'on 2 \u00b7 off 1')"
+  ],
+  [
+   "mixed sources: one store, each tap counted once (stop1 3/1, stop2 2/0, stop3 1/0, stop4 0/1, unscheduled 1/0)",
+   true,
+   "{'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '3': 1}, 'adhocOn': 1, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1790979664984}"
+  ],
+  [
+   "map 'onboard' counter = boarded - alighted = 7 - 2 = 5 (no double count)",
+   true,
+   "5"
+  ],
+  [
+   "mixed counts survive a refresh unchanged",
+   true,
+   "{'stopsOn': {'0': 3, '1': 2, '2': 1}, 'stopsOff': {'0': 1, '3': 1}, 'adhocOn': 1, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1790979664984}"
+  ],
+  [
+   "confirm dialog shows the COMBINED figures (3/1, 2/0, 1/0, 0/1, unscheduled 1/0, total 7/2)",
+   true,
+   "Finish & submit run\nRun Test Route (AM) \u00b7 AM\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t0\n4. Penyrheol Comprehensive School\t0\t1\nUnscheduled (not at a stop)\t1\t0\nTotal\t7\t2\nCancel\nSubmit"
+  ],
+  [
+   "submitted run (mixed): per-stop + unscheduled + totals are the combined figures, stops[].index = stop index",
+   true,
+   "[{'index': 0, 'name': 'Clydach (Post Office)', 'boarded': 3, 'alighted': 1}, {'index': 1, 'name': 'Pontarddulais Road', 'boarded': 2, 'alighted': 0}, {'index': 2, 'name': 'Gorseinon Square', 'boarded': 1, 'alighted': 0}, {'index': 3, 'name': 'Penyrheol Comprehensive School', 'boarded': 0, 'alighted': 1}]"
+  ],
+  [
+   "after the mixed submit both sources are cleared (store, Schedule rows, map counter)",
+   true,
+   "{'stopsOn': {}, 'stopsOff': {}, 'adhocOn': 0, 'adhocOff': 0, 'unmapped': {}, 'startedAt': None}"
+  ],
+  [
+   "admin Runs tab shows the mixed run (3/1, 2/0, 1/0, 0/1, unscheduled 1/0, total 7/2)",
+   true,
+   "02 Oct 2026 23:21\nDave Driver\nRun Test Route (AM)\nAM\n7\n2\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t3\t1\n2. Pontarddulais Road\t2\t0\n3. Gorseinon Square\t1\t0\n4. Penyrheol Comprehensive School\t0\t1\nUnscheduled (not at a stop)\t1\t0\nTotal\t7\t2\nStarted 02 Oct 2026 23:21 \u00b7 submitted 02 Oct 2026 23:21\nDelete run"
+  ],
+  [
+   "legacy Schedule counts migrate into the per-stop store (stop1 +2 -> on, stop2 -1 -> off, stop4 +3; existing stop3 kept; legacy keys gone)",
+   true,
+   "{'stopsOn': {'0': 2, '2': 1, '3': 3}, 'stopsOff': {'1': 1}, 'adhocOn': 0, 'adhocOff': 0, 'unmapped': {}, 'startedAt': 1700000000000}"
+  ],
+  [
+   "row matching no stop: counted as unscheduled once (adhocOn 2), shown on its own row; matched row goes to stop 1",
+   true,
+   "{'stopsOn': {'0': 1}, 'stopsOff': {}, 'adhocOn': 2, 'adhocOff': 0, 'unmapped': {'MORNING-1': {'on': 2, 'off': 0}}, 'startedAt': 1790979668319}"
+  ],
+  [
+   "confirm dialog: unscheduled 2/0, stop 1 1/0, total 3/0 for that route",
+   true,
+   "Finish & submit run\nUnmapped Row Route (AM) \u00b7 AM\nStop\tBoarded\tAlighted\n1. Clydach (Post Office)\t1\t0\n2. Pontarddulais Road\t0\t0\n3. Gorseinon Square\t0\t0\n4. Stop 4\t0\t0\nUnscheduled (not at a stop)\t2\t0\nTotal\t3\t0\nCancel\nSubmit"
+  ],
+  [
+   "temporary test route removed again (41 routes)",
+   true,
+   ""
+  ],
+  [
+   "Operator details tab is next to Routes/Drivers/Runs and shows the section",
+   true,
+   ""
+  ],
+  [
+   "fresh company: form empty, 'Apply to all routes' disabled until details are saved",
+   true,
+   ""
+  ],
+  [
+   "company doc has no operator yet",
+   true,
+   ""
+  ],
+  [
+   "samples imported BEFORE a company operator exists keep their own operator, marked custom (4 of the 38 samples have none)",
+   true,
+   "({'name': 'South Wales Transport (Neath) Ltd.', 'address': 'Unit 2, Ferryboat Close, Swansea Enterprise Park, Swansea, SA6 8QN', 'tel': '01792 799575'}, None)"
+  ],
+  [
+   "save with empty name is refused (message shown, nothing stored)",
+   true,
+   "Please enter the operator's name."
+  ],
+  [
+   "whitespace-only name is refused too",
+   true,
+   ""
+  ],
+  [
+   "invalid email format is refused (name filled)",
+   true,
+   "That email address doesn't look right (expected name@example.com)."
+  ],
+  [
+   "valid details saved to companies/{cid}.operator (free-text phone kept verbatim)",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "after saving: apply panel is offered with the exact counts (41 routes: 6 without operator to fill, 35 custom kept)",
+   true,
+   "Saved. 6 existing routes don't use these details yet \u2013 apply them below if you want. 41 routes in total \u00b7 6 would be updated \u00b7 35 custom kept as they are."
+  ],
+  [
+   "'Overwrite all' mode: info says all 41 would be updated, custom no longer 'kept'",
+   true,
+   "Saved. 41 existing routes don't use these details yet \u2013 apply them below if you want. 41 routes in total \u00b7 41 would be updated."
+  ],
+  [
+   "email is optional (empty email saves)",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123'}"
+  ],
+  [
+   "operator details survive a page reload (form re-filled from Firestore)",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "new route: operator pre-filled from the company operator",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "new route: indicator says 'Using company operator details'; reset button hidden",
+   true,
+   ""
+  ],
+  [
+   "editing a field flips the indicator to 'Custom for this route' and shows the reset button",
+   true,
+   ""
+  ],
+  [
+   "reset-to-company-default restores the company details and the 'Using company' indicator",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "typing the company value back also returns to 'Using company'",
+   true,
+   ""
+  ],
+  [
+   "GPX import keeps the pre-filled company operator",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "custom route stored with its own operator + operatorCustom=true",
+   true,
+   "{'name': 'Custom Cabs Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '07000 000 000', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "GPX import keeps the pre-filled company operator (second route)",
+   true,
+   ""
+  ],
+  [
+   "route editor: invalid operator email blocks the save",
+   true,
+   "The operator email address doesn't look right."
+  ],
+  [
+   "new route stored with the company operator, operatorCustom=false",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "route list shows Operator: company / custom per route",
+   true,
+   "{'ufqLLq4qAgMYgSAJnJKZ': 'company', 'FUvjsqcC7dMbaNc8LYn2': 'custom', 'seed-360-am': 'custom', 'route-995-am': 'company', 'PjUWe3DSx3sjjvBihcAX': 'company'}"
+  ],
+  [
+   "re-opening the custom route: 'Custom for this route', own details kept",
+   true,
+   ""
+  ],
+  [
+   "route that has NO operator opens showing the company details ('Using company')",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "route list now has 43 routes",
+   true,
+   ""
+  ],
+  [
+   "precondition: 'Run Test Route (AM)' has NO operator stored in Firestore",
+   true,
+   ""
+  ],
+  [
+   "driver Schedule: a route with no operator shows the COMPANY operator (name, address, tel, email)",
+   true,
+   "ost Office)\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n07:40\nPontarddulais Road\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n07:52\nGorseinon Square\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n08:05\nPenyrheol Comprehensive School\nDone\nOnboard change:\n\u2212\n0\n+\non 0 \u00b7 off 0\n08:20\nOPERATOR\nAlpha Travel Group Ltd\n12 Quay Parade, Swansea, SA1 3XY\nTel: 01792 555 000 (office) / 07700 900 123\noperations@alpha-travel.test"
+  ],
+  [
+   "driver Schedule: a custom route still shows its own operator, not the company's",
+   true,
+   " (roundabout), A483, A48, Swansea Road, Druidstone Way, Swansea Road, Gorseinon Road, Dillwyn Road, \u2026 Crescent, Heol-y-Gelli, Llewellyn Road, Gorseinon Road, Hospital \u2026, Swansea Road, A484, Victoria Road, Mill Street, Sterry Road, Cecil \u2026, Park Road (School). (A few words were cropped in the photo.)"
+  ],
+  [
+   "driver Schedule: a sample route that has no operator shows the company operator",
+   true,
+   "Route map only \u2014 no published timetable/stop times for this one yet.\nNo drop times saved for this route yet.\nOPERATOR\nAlpha Travel Group Ltd\n12 Quay Parade, Swansea, SA1 3XY\nTel: 01792 555 000 (office) / 07700 900 123\noperations@alpha-travel.test"
+  ],
+  [
+   "'Apply to all routes' asks for confirmation; Cancel changes nothing",
+   true,
+   "['Set the company operator details on 6 route(s) that have none or already use the company details. 36 custom route(s) are left alone.\\n\\nCompany operator: Alpha Travel Group Ltd \u00b7 01792 555 000 (office) / 07700 900 123\\n\\nContinue?']"
+  ],
+  [
+   "fill-only: exactly the 6 routes without operator (Run Test, Big recorded, 4 samples) were filled (operatorCustom=false); the 35 custom routes (incl. 34 samples) and the new ones untouched",
+   true,
+   "['PjUWe3DSx3sjjvBihcAX', 'THJOpNWCXsZsD3aBVac9', 'route-902-am', 'route-902-pm', 'route-995-am', 'route-995-pm']"
+  ],
+  [
+   "after fill-only the panel says nothing left to update in 'fill' mode (36 custom kept)",
+   true,
+   "43 routes in total \u00b7 0 would be updated \u00b7 36 custom kept as they are \u00b7 7 already use the company details."
+  ],
+  [
+   "sample route editor: indicator 'Custom for this route' (it has its own operator)",
+   true,
+   ""
+  ],
+  [
+   "reset-to-company + save: route now stores the company operator, operatorCustom=false",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '12 Quay Parade, Swansea, SA1 3XY', 'tel': '01792 555 000 (office) / 07700 900 123', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "overwrite-all preview counts every route not yet on the company details (35 of 43)",
+   true,
+   "(35, \"Saved. 35 existing routes don't use these details yet \u2013 apply them below if you want. 43 routes in total \u00b7 35 would be updated \u00b7 8 already use the company details.\")"
+  ],
+  [
+   "overwrite-all confirm text warns it OVERWRITES custom routes",
+   true,
+   "OVERWRITE the operator details of 35 route(s) with the company operator details \u2013 including routes with their own custom details.\n\nCompany operator: Alpha Travel Group Ltd \u00b7 01792 555 000 (office) / 07700 900 123\n\nContinue?"
+  ],
+  [
+   "overwrite-all: ALL 43 routes (incl. the 38 sample routes and the custom one) now have the company operator, operatorCustom=false",
+   true,
+   "(43, 38)"
+  ],
+  [
+   "after applying, the panel reports every route already uses the company details",
+   true,
+   "43 routes in total \u00b7 0 would be updated \u00b7 43 already use the company details."
+  ],
+  [
+   "driver Schedule: a former custom sample route now shows the company operator",
+   true,
+   " (roundabout), A483, A48, Swansea Road, Druidstone Way, Swansea Road, Gorseinon Road, Dillwyn Road, \u2026 Crescent, Heol-y-Gelli, Llewellyn Road, Gorseinon Road, Hospital \u2026, Swansea Road, A484, Victoria Road, Mill Street, Sterry Road, Cecil \u2026, Park Road (School). (A few words were cropped in the photo.)"
+  ],
+  [
+   "company operator updated in Firestore",
+   true,
+   "{'name': 'Alpha Travel Group Ltd', 'address': '3 New Street, Cardiff, CF10 1AA', 'tel': '01792 777 777', 'email': 'operations@alpha-travel.test'}"
+  ],
+  [
+   "panel offers to refresh the 43 routes that still hold the old copy",
+   true,
+   "Saved. 43 existing routes don't use these details yet \u2013 apply them below if you want. 43 routes in total \u00b7 43 would be updated."
+  ],
+  [
+   "driver (no reload) immediately sees the NEW company details on a route that follows the company, even before 'Apply'",
+   true,
+   " Way, Swansea Road, Gorseinon Road, Dillwyn Road, \u2026 Crescent, Heol-y-Gelli, Llewellyn Road, Gorseinon Road, Hospital \u2026, Swansea Road, A484, Victoria Road, Mill Street, Sterry Road, Cecil \u2026, Park Road (School). (A few words were cropped in the photo.)"
+  ],
+  [
+   "(routes in Firestore still hold the old copy until applied)",
+   true,
+   ""
+  ],
+  [
+   "fill-only apply refreshed all 43 routes that followed the company",
+   true,
+   ""
+  ],
+  [
+   "sample import with a company operator: imported routes get it (not the sample's own), operatorCustom=false, still 43 routes",
+   true,
+   "({'name': 'Alpha Travel Group Ltd', 'address': '3 New Street, Cardiff, CF10 1AA', 'tel': '01792 777 777', 'email': 'operations@alpha-travel.test'}, 43)"
+  ],
+  [
+   "company B: no operator on its company doc or on its route",
+   true,
+   "{'JAM4jgh3oi1gfp22wFM8': {'name': 'Bravo Route 1', 'operator': None, 'custom': False}}"
+  ],
+  [
+   "company B's Operator tab is empty and apply is disabled",
+   true,
+   ""
+  ],
+  [
+   "company B: a new route is NOT pre-filled with A's operator",
+   true,
+   ""
+  ],
+  [
+   "company B's driver Schedule (route 'Bravo Route 1') shows no operator section / none of A's details",
+   true,
+   "('Bravo Route 1', 'No drop times saved for this route yet.')"
+  ],
+  [
+   "company B admin cannot change A's company operator (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company B admin cannot change A's A's route operator (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "A's operator unchanged after B's attempts",
+   true,
+   ""
+  ],
+  [
+   "driver UI: no Operator tab / admin screen anywhere",
+   true,
+   ""
+  ],
+  [
+   "driver cannot edit company operator (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver cannot edit company name (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "driver cannot edit a route's operator (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "nothing changed after the driver's attempts",
+   true,
+   ""
+  ],
+  [
+   "rules: even the admin cannot store an operator with empty name (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: even the admin cannot store an operator with bad email (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: even the admin cannot store an operator with name > 120 chars (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: even the admin cannot store an operator with tel > 40 chars (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: even the admin cannot store an operator with address > 250 chars (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: even the admin cannot store an operator with unknown key (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "rules: ownerUid still protected (permission-denied)",
+   true,
+   "permission-denied"
+  ],
+  [
+   "company doc unchanged after the rejected writes",
+   true,
+   ""
+  ],
+  [
+   "Operator details tab fits a 390 px phone screen (no horizontal page overflow)",
+   true,
+   "{'sw': 390, 'iw': 390, 'form': 355}"
+  ],
+  [
+   "phone width: validation message visible",
+   true,
+   ""
   ],
   [
    "removed driver is locked out (no company linked)",

@@ -251,15 +251,19 @@
 
   /* ---------------- Passenger counter (per route, this device) ---------------- */
   function newPax(){
-    return { byStop:{}, byGpsStop:{}, adhoc:0, stopsOn:{}, stopsOff:{}, adhocOn:0, adhocOff:0, startedAt:null };
+    return { stopsOn:{}, stopsOff:{}, adhocOn:0, adhocOff:0, unmapped:{}, startedAt:null };
   }
   var pax = newPax();
-  // byStop: schedule-row key ("MORNING-0"...) -> net count, set from the Schedule tab's own +/- controls.
-  // byGpsStop: r.stops index -> net count, set from the Board/Alight buttons WHILE the live GPS position is at that stop.
-  // adhoc: Board/Alight taps made when GPS isn't near any numbered stop (e.g. an unscheduled pickup).
-  // stopsOn / stopsOff: r.stops index -> number of Board / Alight taps at that stop (what a submitted run reports).
-  // adhocOn / adhocOff: Board / Alight taps made away from every stop ("unscheduled").
+  // SINGLE SOURCE OF TRUTH for a run's passenger counts (what the run summary and the submitted run read):
+  // stopsOn / stopsOff: r.stops index (0-based, = submitted stops[].index) -> number of Board / Alight taps at that stop.
+  //   Written by BOTH the map-screen Board/Alight buttons (when the GPS position is within AT_STOP_RADIUS_M of a stop)
+  //   AND the Schedule tab's per-row Onboard change + / - (the row is mapped to its stop index, see rowStopIndex()).
+  // adhocOn / adhocOff: Board / Alight taps made away from every stop ("unscheduled"; also Schedule rows that cannot be
+  //   matched to a stop).
+  // unmapped: Schedule-row key ("MORNING-3") -> {on,off}; display only, for rows that cannot be matched to a stop
+  //   (those taps are already counted in adhocOn/adhocOff, so it is never added to the totals again).
   // startedAt: ms timestamp of the first tap / GPS start of the current run (null = run not started).
+  // (Older versions also kept byStop / byGpsStop / adhoc; loadPax() + migrateLegacyPax() fold those in once.)
   var currentGpsStopIdx = null;
   var AT_STOP_RADIUS_M = 50;   // Board/Alight within this many metres of a stop is logged against that stop
   function paxKey(routeId){ return 'rt_pax_'+routeId; }
@@ -270,14 +274,15 @@
       if(raw){
         var parsed = JSON.parse(raw);
         if(parsed && typeof parsed==='object'){
-          out.byStop = parsed.byStop||{};
-          out.byGpsStop = parsed.byGpsStop||{};
-          out.adhoc = parsed.adhoc||0;
           out.stopsOn = parsed.stopsOn||{};
           out.stopsOff = parsed.stopsOff||{};
           out.adhocOn = parsed.adhocOn||0;
           out.adhocOff = parsed.adhocOff||0;
+          out.unmapped = parsed.unmapped||{};
           out.startedAt = parsed.startedAt||null;
+          if(parsed.byStop || parsed.byGpsStop || parsed.adhoc){
+            out._legacy = { byStop:parsed.byStop||{}, byGpsStop:parsed.byGpsStop||{}, adhoc:parsed.adhoc||0 };
+          }
         }
       }
     }catch(e){}
@@ -290,10 +295,7 @@
     if(activeId && !pax.startedAt){ pax.startedAt = Date.now(); savePax(activeId); }
   }
   function paxTotal(){
-    var t = pax.adhoc;
-    Object.keys(pax.byStop).forEach(function(k){ t += pax.byStop[k]; });
-    Object.keys(pax.byGpsStop).forEach(function(k){ t += pax.byGpsStop[k]; });
-    return Math.max(0, t);
+    return Math.max(0, sumVals(pax.stopsOn) - sumVals(pax.stopsOff) + (pax.adhocOn|0) - (pax.adhocOff|0));
   }
   function renderPax(){
     var total = paxTotal();
@@ -302,7 +304,12 @@
     var elFs = document.getElementById('fsPaxCount');
     if(elFs) elFs.textContent = total;
     document.querySelectorAll('.sched-pax .n').forEach(function(el){
-      el.textContent = pax.byStop[el.getAttribute('data-stop-idx')] || 0;
+      var idx = +el.getAttribute('data-sidx'), on, off;
+      if(idx >= 0){ on = pax.stopsOn[idx]|0; off = pax.stopsOff[idx]|0; }
+      else { var u = pax.unmapped[el.getAttribute('data-stop-idx')] || {}; on = u.on|0; off = u.off|0; }
+      el.textContent = on - off;
+      var det = el.parentNode.querySelector('.sched-pax-detail');
+      if(det) det.textContent = 'on ' + on + ' · off ' + off;
     });
     renderPaxContext();
   }
@@ -321,21 +328,62 @@
     ensureRunStarted();
     var counter = delta>0 ? 'stopsOn' : 'stopsOff';
     if(currentGpsStopIdx!=null){
-      var cur = pax.byGpsStop[currentGpsStopIdx] || 0;
-      pax.byGpsStop[currentGpsStopIdx] = cur + delta;
       pax[counter][currentGpsStopIdx] = (pax[counter][currentGpsStopIdx]||0) + 1;
     } else {
-      pax.adhoc += delta;
       if(delta>0) pax.adhocOn += 1; else pax.adhocOff += 1;
     }
     if(activeId) savePax(activeId);
     renderPax();
   }
-  function paxAdjustStop(stopIdx, delta){
-    var cur = pax.byStop[stopIdx] || 0;
-    pax.byStop[stopIdx] = cur + delta;
+  // Schedule-tab + / -: logged against the stop the timetable row belongs to (same store as the map buttons).
+  function paxAdjustStop(stopIdx, delta, rowKey){
+    ensureRunStarted();
+    var counter = delta>0 ? 'stopsOn' : 'stopsOff';
+    if(stopIdx >= 0){
+      pax[counter][stopIdx] = (pax[counter][stopIdx]||0) + 1;
+    } else {
+      // timetable row that matches no stop -> unscheduled (and remembered per row so the row can show its own count)
+      if(delta>0) pax.adhocOn += 1; else pax.adhocOff += 1;
+      var u = pax.unmapped[rowKey] || (pax.unmapped[rowKey] = { on:0, off:0 });
+      if(delta>0) u.on += 1; else u.off += 1;
+    }
     if(activeId) savePax(activeId);
     renderPax();
+  }
+  // Which r.stops index does timetable row `rowIdx` of `rows` belong to? Match by stop name first (the
+  // same way stopSchedTime() does it), else by position when the timetable has one row per stop, else -1.
+  function rowStopIndex(r, rows, rowIdx){
+    var stops = r.stops || [];
+    var target = normName(rows[rowIdx] && rows[rowIdx].stop);
+    if(target){
+      for(var i=0;i<stops.length;i++){
+        if(normName(stopName(r, i))===target || normName(r.stopNames && r.stopNames[i])===target) return i;
+      }
+    }
+    if(rows.length===stops.length && rowIdx < stops.length) return rowIdx;
+    return -1;
+  }
+  // One-off: fold counts saved by an older version (Schedule taps in byStop keyed "MORNING-n", map taps as
+  // net byGpsStop/adhoc) into the single per-stop store.
+  function migrateLegacyPax(r){
+    var lg = pax._legacy;
+    if(!lg) return;
+    delete pax._legacy;
+    var tt = (r && r.timetable) || {};
+    var fresh = !Object.keys(pax.stopsOn).length && !Object.keys(pax.stopsOff).length && !pax.adhocOn && !pax.adhocOff;
+    if(fresh){            // saved before per-stop run counts existed: only net numbers are known
+      Object.keys(lg.byGpsStop).forEach(function(k){ var v = lg.byGpsStop[k]|0; if(v>0) pax.stopsOn[k] = v; else if(v<0) pax.stopsOff[k] = -v; });
+      if(lg.adhoc>0) pax.adhocOn = lg.adhoc; else if(lg.adhoc<0) pax.adhocOff = -lg.adhoc;
+    }
+    Object.keys(lg.byStop).forEach(function(key){
+      var v = lg.byStop[key]|0, m = /^(MORNING|AFTERNOON)-(\d+)$/.exec(key);
+      if(!v || !m) return;
+      var rows = (m[1]==='MORNING' ? tt.morning : tt.afternoon) || [];
+      var idx = rowStopIndex(r, rows, +m[2]);
+      if(idx >= 0){ if(v>0) pax.stopsOn[idx] = (pax.stopsOn[idx]|0) + v; else pax.stopsOff[idx] = (pax.stopsOff[idx]|0) - v; }
+      else { if(v>0) pax.adhocOn += v; else pax.adhocOff -= v; }
+    });
+    if(activeId) savePax(activeId);
   }
   function paxReset(){
     if(!confirm('Reset the onboard passenger count for this route?')) return;
@@ -460,6 +508,7 @@
     renderRouteList();
     renderEmptyState();
     pax = loadPax(id);
+    migrateLegacyPax(routes[id]);
     currentGpsStopIdx = null;
     renderPax();
     renderSchedule();
@@ -557,14 +606,16 @@
           status = t2 ? 'In '+fmtMinutes(t2.getTime()-now.getTime()) : 'Upcoming';
         }
         var stopKey = sec.label+'-'+i;
+        var sidx = rowStopIndex(r, sec.rows, i);
         html += '<div class="'+cls+'"><div class="sched-dot"></div><div class="sched-info">'+
           '<div class="sched-stop">'+escapeHtml(row.stop)+'</div>'+
           '<div class="sched-status">'+escapeHtml(status)+'</div>'+
           '<div class="sched-pax">'+
             '<span class="sched-pax-label">Onboard change:</span>'+
-            '<button class="sched-pax-btn off" data-stopkey="'+stopKey+'" data-dir="-1" aria-label="Passenger got off">−</button>'+
-            '<span class="n" data-stop-idx="'+stopKey+'">0</span>'+
-            '<button class="sched-pax-btn on" data-stopkey="'+stopKey+'" data-dir="1" aria-label="Passenger got on">+</button>'+
+            '<button class="sched-pax-btn off" data-stopkey="'+stopKey+'" data-sidx="'+sidx+'" data-dir="-1" aria-label="Passenger got off">−</button>'+
+            '<span class="n" data-stop-idx="'+stopKey+'" data-sidx="'+sidx+'">0</span>'+
+            '<button class="sched-pax-btn on" data-stopkey="'+stopKey+'" data-sidx="'+sidx+'" data-dir="1" aria-label="Passenger got on">+</button>'+
+            '<span class="sched-pax-detail muted" style="margin-left:8px;font-size:11px"></span>'+
           '</div>'+
           '</div><div class="sched-time">'+escapeHtml(row.time)+'</div></div>';
       });
@@ -597,7 +648,7 @@
   document.getElementById('schedBody').addEventListener('click', function(e){
     var btn = e.target.closest('.sched-pax-btn');
     if(!btn) return;
-    paxAdjustStop(btn.getAttribute('data-stopkey'), parseInt(btn.getAttribute('data-dir'),10));
+    paxAdjustStop(parseInt(btn.getAttribute('data-sidx'),10), parseInt(btn.getAttribute('data-dir'),10), btn.getAttribute('data-stopkey'));
   });
   // Refresh the live shading every 20s while the schedule tab is open
   setInterval(function(){
@@ -1522,8 +1573,6 @@
     });
     h += '<tr class="unsched"><td>Unscheduled (not at a stop)</td><td class="n">'+run.unscheduledBoarded+'</td><td class="n">'+run.unscheduledAlighted+'</td></tr>';
     h += '<tr class="tot"><td>Total</td><td class="n" id="runTotB">'+run.totalBoarded+'</td><td class="n" id="runTotA">'+run.totalAlighted+'</td></tr></tbody></table>';
-    var sched = sumVals(pax.byStop);
-    if(run.routeId===activeId && sched) h += '<div class="run-note">Schedule-tab “onboard change” taps (net '+(sched>0?'+':'')+sched+') are not part of the per-stop figures.</div>';
     return h;
   }
   function setModalState(state, msg){

@@ -11,25 +11,28 @@ import {
 import { isConfigured, isEmulator, auth, db } from "./firebase-init.js";
 import { $, setView, toast, friendlyError } from "./ui.js";
 import { decodePolyline, densify } from "./geo.js";
-import { initAdmin, showAdmin, onRoutesChanged } from "./admin.js";
+import { initAdmin, showAdmin, onRoutesChanged, onCompanyChanged } from "./admin.js";
+import { resolveOperator } from "./operator.js";
 
-const session = { user: null, profile: null, company: null, companyId: null, unsubRoutes: null };
+const session = { user: null, profile: null, company: null, companyId: null, unsubRoutes: null, unsubCompany: null, rawRoutes: {} };
 let registering = false;
 
 /* ---------- convert a Firestore route doc into the shape the driver view expects ---------- */
-export function docToRoute(id, d) {
+export function docToRoute(id, d, companyOp) {
   const stops = Array.isArray(d.stops) ? d.stops : [];
   const track = d.trackEnc ? densify(decodePolyline(d.trackEnc), 30) : [];
   const upd = d.updatedAt && d.updatedAt.toMillis ? d.updatedAt.toMillis() : 0;
+  // the operator the driver sees: the route's own (custom) details, else the company operator
+  const operator = resolveOperator(d, companyOp);
   return {
     id, name: d.name, addedAt: d.addedAt,
     track,
     stops: stops.map((s) => [s.lat, s.lng]),
     stopNames: stops.map((s) => s.name || ""),
-    timetable: d.timetable, operator: d.operator, capacity: d.capacity,
+    timetable: d.timetable, operator, capacity: d.capacity,
     specifiedRoute: d.specifiedRoute, note: d.note, contacts: d.contacts,
     category: d.category, session: d.session,
-    _v: upd + ":" + (d.trackEnc ? d.trackEnc.length : 0) + ":" + (d.name || "") + ":" + stops.length
+    _v: upd + ":" + (d.trackEnc ? d.trackEnc.length : 0) + ":" + (d.name || "") + ":" + stops.length + ":" + (operator ? JSON.stringify(operator) : "")
   };
 }
 
@@ -85,16 +88,37 @@ async function startSession(user) {
   }
 }
 
+/* push the current raw route docs (+ the company operator fallback) to the driver view and the admin screens */
+function pushRoutes() {
+  const op = session.company && session.company.operator;
+  const fresh = {};
+  Object.keys(session.rawRoutes).forEach((id) => { fresh[id] = docToRoute(id, session.rawRoutes[id], op); });
+  window.RoundTracker.setRoutes(fresh);
+}
+
 function subscribeRoutes() {
+  session.rawRoutes = {};
   session.unsubRoutes = onSnapshot(
     collection(db, "companies", session.companyId, "routes"),
     (snap) => {
-      const raw = {}, fresh = {};
-      snap.docs.forEach((d) => { raw[d.id] = d.data(); fresh[d.id] = docToRoute(d.id, d.data()); });
-      window.RoundTracker.setRoutes(fresh);
+      const raw = {};
+      snap.docs.forEach((d) => { raw[d.id] = d.data(); });
+      session.rawRoutes = raw;
+      pushRoutes();
       onRoutesChanged(raw);
     },
     (err) => { console.error(err); toast("Could not load routes: " + friendlyError(err), true); }
+  );
+  // live company doc: the operator details can change while a driver has the app open
+  session.unsubCompany = onSnapshot(
+    doc(db, "companies", session.companyId),
+    (cs) => {
+      if (!cs.exists()) return;
+      session.company = cs.data();
+      pushRoutes();
+      onCompanyChanged(session.company);
+    },
+    (err) => { console.warn("company listener:", err && err.code); }
   );
 }
 
@@ -136,6 +160,7 @@ function configureRuns(user, profile) {
 
 function teardown() {
   if (session.unsubRoutes) { session.unsubRoutes(); session.unsubRoutes = null; }
+  if (session.unsubCompany) { session.unsubCompany(); session.unsubCompany = null; }
 }
 
 export function openDriver() {

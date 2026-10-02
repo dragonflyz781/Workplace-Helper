@@ -5,7 +5,7 @@ rules_version = '2';
 //
 // Data layout
 //   users/{uid}                          { companyId, role: 'admin'|'driver', name, email, createdAt }
-//   companies/{companyId}                { name, ownerUid, createdAt }
+//   companies/{companyId}                { name, ownerUid, createdAt, operator?: { name, address?, tel?, email? } }
 //   companies/{companyId}/routes/{id}    route documents (track, stops, timetable ...)
 //   companies/{companyId}/runs/{id}      submitted driver runs (passenger counts per stop) - write-once
 //
@@ -71,9 +71,27 @@ service cloud.firestore {
                     && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
                     && !exists(profilePath(request.auth.uid));
 
-      // Admins may rename the company; owner can't be changed.
+      // Operator details shown on every route's Schedule: { name (required), address?, tel?, email? }.
+      // Size limits + shape are checked here; email must look like x@y.z (or be empty); tel is free text.
+      function validOperator(o) {
+        return o is map
+            && o.keys().hasOnly(['name','address','tel','email'])
+            && o.keys().hasAll(['name'])
+            && o.name is string && o.name.trim().size() > 0 && o.name.size() <= 120
+            && (!('address' in o) || (o.address is string && o.address.size() <= 250))
+            && (!('tel' in o)     || (o.tel is string && o.tel.size() <= 40))
+            && (!('email' in o)   || (o.email is string && o.email.size() <= 120
+                                      && (o.email.size() == 0 || o.email.matches('^[^@ \\t\\r\\n]+@[^@ \\t\\r\\n]+\\.[^@ \\t\\r\\n]+$'))));
+      }
+
+      // Admins may rename the company and set its operator details; nothing else can change
+      // (owner can't be changed, no extra fields can be added). Drivers cannot update at all.
       allow update: if isAdmin(companyId)
-                    && request.resource.data.ownerUid == resource.data.ownerUid;
+                    && request.resource.data.ownerUid == resource.data.ownerUid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','operator'])
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 120
+                    && (!('operator' in request.resource.data) || validOperator(request.resource.data.operator));
       allow delete: if false;
 
       // --------------------------------------------------------------- routes
